@@ -1,33 +1,45 @@
-# Folio — Architecture
+# Papyrine — Architecture
 
-Status: **Draft v2 for approval** · Last updated: 2026-09-30
+Status: **Draft v3** (direction approved by the owner; revision 3 applies
+the second review) · Last updated: 2026-09-30
 
-> **Working name.** "Folio" conflicts with an existing Mac App Store PDF
-> editor, a crates.io PDF library and a Flathub app (ADR-019). This document
-> uses "Folio" / `folio-*` as placeholders. Nothing is created under that
-> name (crates, bundle ID) until the name is decided.
+**Product name:** **Papyrine** (ADR-019).
+- Crates: `papyrine-*`.
+- CLI: `papyrine`.
+- Bundle ID: `io.github.manjunathsharma10.papyrine`.
+- Repo: `github.com/manjunathsharma10/papyrine`.
 
 This document describes processes, crates, data flow, threading, persistence,
 security boundaries, optional components and dependencies. Choices are
 justified in [DECISIONS.md](DECISIONS.md) (ADR-NNN).
 
-**Revision 2 changes:**
-- Lightweight budgets are now hard CI gates (§1).
-- An optional-components mechanism (§9).
-- One render worker instead of a pool (§2).
-- A snapshot compaction strategy (§4.6).
-- Exactly how Rust talks to qpdf, and how the two writers share one object
-  model (§4.1, §4.5).
-- A change-driven journal replaces timer autosave (§7).
-- HEIC via OS decoders (§11.4).
-- The license gate split into shipped vs test-only, with generated notices
-  (§12).
+**Revision 2:**
+- Lightweight budgets became hard CI gates.
+- Optional components.
+- One render worker.
+- Snapshot compaction.
+- The qpdf shim.
+- A change-driven journal.
+- HEIC via OS decoders.
+- License gate and notices.
+
+**Revision 3:**
+- Budgets accepted (§1.1).
+- A large-document memory gate (§1.2).
+- Write-ahead journal in the host (§7).
+- qpdf/PDFium consistency under the command-mirroring fallback (§4.6).
+- qpdf crypto provider pinned to native (§4.1, §12).
+- Opt-in security update check (§9.2).
+- Signing-key storage and rotation (§9.3).
+- Helper notarization (§9.4).
+- Per-platform printing plan (§11.2).
+- The Windows HEVC message (§11.4).
 
 ---
 
 ## 1. Product direction and lightweight budgets
 
-Folio is **simple and lightweight while feature-rich.** The spec's
+Papyrine is **simple and lightweight while feature-rich.** The spec's
 Acrobat-class scope stays the long-term target. Where the spec and these
 budgets conflict, the budgets win (ADR-010).
 
@@ -35,35 +47,58 @@ budgets conflict, the budgets win (ADR-010).
 
 | Budget | Target | Measured how | CI gate |
 |---|---|---|---|
-| Installer size (base, per platform/arch) | **≤ 50 MB** for `.dmg` (per-arch, not universal), `.msi`/NSIS, `.deb`, `.rpm`, Flatpak bundle. Internal target **≤ 30 MB** to keep headroom | Size of the release artifact | Fail if > 50 MB, or if a PR grows it > 5% vs `main` without a `size-increase-approved` label |
+| Installer size (base, per platform/arch) | **≤ 50 MB** for `.dmg` (per-arch, not universal), `.msi`/NSIS, `.deb`, `.rpm`, Flatpak bundle · **AppImage ≤ 100 MB** (it bundles WebKitGTK). Internal target **≤ 30 MB** to keep headroom | Size of the release artifact | Fail above the budget, or if a PR grows an artifact > 5% vs `main` without a `size-increase-approved` label |
 | Cold launch → first rendered page | **< 1.0 s** on the reference Mac (this machine, Apple Silicon) · warm **< 0.5 s** | Launch with a typical doc as an argument; the timestamp from process start to the UI's first-tile-painted event. "Cold" = after `sudo purge`, excluding the first-ever Gatekeeper verification | Absolute check on the reference machine each milestone. CI (macOS runner) fails on > 15% regression vs the rolling median, and on an absolute > 2.0 s |
-| Idle memory, one typical doc open | **≤ 150 MB** macOS · **≤ 175 MB** Linux · **≤ 200 MB** Windows (see §1.2) | Sum over **all** app processes, including webview helpers. macOS `phys_footprint`, Linux PSS, Windows private working set. Sampled 10 s after first paint with no interaction | Absolute gate on the macOS and Linux runners; trend gate on Windows |
+| Idle memory, one typical doc open | **≤ 150 MB** macOS · **≤ 175 MB** Linux · **≤ 200 MB** Windows (accepted) | Sum over **all** app processes, including webview helpers. macOS `phys_footprint`, Linux PSS, Windows private working set. Sampled 10 s after first paint with no interaction | Absolute gate on the macOS and Linux runners; trend gate on Windows |
+| Large-document memory (§1.2) | **≤ 400 MB** peak and **≤ 250 MB** settled (idle 10 s after a full scroll) across all processes, for each large benchmark file; engine and renderer each **≤ 120 MB** settled | Same accounting as idle memory, sampled during and after a scripted full scroll, a search of the whole document, and 50 edits | Absolute gate on macOS and Linux; trend on Windows |
 | Startup cost per feature | **Zero** work before first paint for non-core features | A startup trace (`tracing` spans) records subsystem initialization before first paint | Fail if any subsystem not on the startup allowlist initializes before first paint. Initial JS bundle ≤ **200 KB gzipped** (fail above); any single lazy chunk ≤ 150 KB gzipped (warn) |
 
 "Typical document" = the benchmark file `typical-20p.pdf`: 20 pages, mixed
 text and images, ~4 MB (generated, §14).
 
-### 1.2 Where I've proposed different numbers, and why
+### 1.2 Budget notes and the large-document memory test
 
-- **Idle memory on Windows and Linux.** The webview alone is outside our
-  control. WebView2 (Windows) runs a browser, GPU, renderer and utility
-  process tree, typically 80–120 MB before any app content. WebKitGTK
-  (Linux) is similar at about 70–100 MB. WKWebView (macOS) is lighter.
-  150 MB on macOS looks achievable. On Windows 150 MB would leave ~30–50 MB
-  for everything else, which is not realistic with a rendered document, so I
-  propose **200 MB on Windows and 175 MB on Linux**.
+**Accepted by the owner:**
+- Idle memory of 200 MB on Windows and 175 MB on Linux. The webview process
+  floor is WebView2 at ~80–120 MB and WebKitGTK at ~70–100 MB.
+- AppImage ≤ 100 MB.
+- `.deb` and `.rpm` stay ≤ 50 MB.
 
-  Spike 0.1 measures a bare Tauri window on all three OSes first. If the bare
-  window already breaks a number, I'll come back to you before building on
-  it.
-- **Linux AppImage.** Tauri's AppImage bundles WebKitGTK and GTK, typically
-  80–100 MB. I propose that **AppImage is exempt from the 50 MB gate (budget
-  100 MB)**. The `.deb`, `.rpm` and Flatpak (whose GNOME runtime supplies
-  WebKitGTK) stay at 50 MB.
-- **Windows offline installer.** The standard installer relies on the
-  Evergreen WebView2 runtime, which ships with Windows 10/11 and uses a
-  bootstrapper if missing. An optional "offline" installer that bundles a
-  fixed runtime would be ~180 MB, is exempt, and is labelled as such.
+The optional Windows "offline" installer (it bundles a fixed WebView2
+runtime, ~180 MB) is exempt and labelled as such. Spike 0.1 measures the bare
+shell on all three OSes. If the bare shell alone breaks a budget, I stop and
+report.
+
+**Large-document memory.** qpdf (engine) and PDFium (renderer) each open the
+same document, so a naive design pays twice. Mitigations:
+- **No heap copy of the file in either process.** Both read through the
+  host's shared read-only mmap:
+  - qpdf via a custom `InputSource` (not `qpdf_read_memory`);
+  - PDFium via `FPDF_LoadCustomDocument`.
+  Clean file-backed pages are shared by the OS and excluded from
+  `phys_footprint`/private working set.
+- **qpdf holds parsed objects, not stream data.** Stream bytes are read from
+  the input source on demand. The engine only resolves objects it needs
+  (model summaries, commands). Search and rendering are PDFium's job.
+- **PDFium caches are capped:** the page cache (8 pages) and the image-decode
+  cache.
+- The render snapshot sections (§4.6) count toward the renderer's budget, and
+  L2 compaction caps them.
+
+**Benchmark files** (generated at test time):
+- `large-2000p-text.pdf` (~40 MB);
+- `large-1000p-images.pdf` (~450 MB, 300 dpi colour);
+- `large-objects.pdf` (≥ 1.5 M objects, stress-testing qpdf's object
+  table);
+- `large-single-page.pdf` (one 5 m × 5 m engineering drawing, stress-testing
+  PDFium's tile path).
+
+The test runs this script: open → scripted full scroll → whole-document
+search → 50 edits → idle 10 s. It samples every process at 10 Hz and asserts
+the §1.1 budgets. Per-process peaks are reported so we can see which copy
+grows. If qpdf's object table dominates on `large-objects.pdf`, the fallback
+is to open the engine's `QPDF` lazily per operation for view-only documents.
+This is decided from the measurement, not assumed.
 
 ### 1.3 Size and startup estimate for the base install (to be verified in Spike 0.1)
 
@@ -99,26 +134,26 @@ common settings by default, with an "More options" disclosure for the rest.
 ## 2. Process model
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ folio (role=host) — Tauri 2, trusted, user privileges                   │
-│  WebView: React UI ◄── Tauri IPC (commands/events) + folio:// (tiles)   │
-│  Broker: file access, dialogs, journal writer, tile cache, job registry,│
-│          cancellation, supervisor, component manager                    │
-└──────┬──────────────────────────┬────────────────────────┬──────────────┘
-       │ ipc-channel               │ ipc-channel + shmem    │ ipc-channel
-┌──────▼───────────────────┐ ┌─────▼──────────────────┐ ┌──▼────────────────────────┐
-│ folio (role=engine)      │ │ folio (role=render)    │ │ component helpers         │
-│ sandboxed                │ │ sandboxed, ONE process │ │ (optional, on demand,     │
-│ qpdf docs via shim,      │ │ PDFium on one thread:  │ │  sandboxed): ocr, mrc,    │
-│ model, commands, journal │ │ tiles, text, hit-test, │ │  form-scripts…            │
-│ deltas, writer, optimizer│ │ form widgets           │ │ spawned at first use,     │
-│                          │ │                        │ │ exit after idle timeout   │
-└──────────────────────────┘ └────────────────────────┘ └───────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ papyrine (role=host) — Tauri 2, trusted, user privileges                     │
+│  WebView: React UI ◄── Tauri IPC (commands/events) + papyrine:// (tiles)     │
+│  Broker: file access, dialogs, JOURNAL WRITER (write-ahead), tile cache,     │
+│          job registry, cancellation, supervisor, component manager, updater  │
+└──────┬───────────────────────────┬──────────────────────────┬────────────────┘
+       │ ipc-channel               │ ipc-channel + shmem      │ ipc-channel
+┌──────▼────────────────────┐ ┌────▼─────────────────────┐ ┌──▼─────────────────────────┐
+│ papyrine (role=engine)    │ │ papyrine (role=render)   │ │ component helpers          │
+│ sandboxed                 │ │ sandboxed, ONE process   │ │ (optional, on demand,      │
+│ qpdf docs via shim,       │ │ PDFium on one thread:    │ │  sandboxed): ocr, mrc,     │
+│ model, commands,          │ │ tiles, text, hit-test,   │ │  form-scripts…             │
+│ after-images, writer,     │ │ form widgets             │ │ spawned at first use,      │
+│ optimizer                 │ │                          │ │ exit after idle timeout    │
+└───────────────────────────┘ └──────────────────────────┘ └────────────────────────────┘
 ```
 
 - **One executable, several roles** (like Chromium). The host re-executes
   itself with `--role=engine` or `--role=render`. The CLI is the same binary
-  in `cli` role (a `folio` symlink or shim).
+  in `cli` role (a `papyrine` symlink or shim).
 - **One render worker to start** (ADR-004). PDFium is single-threaded, so
   rendering is serialized, but a single worker with a priority queue and
   cancellation is enough for one visible viewport. Adding workers is decided
@@ -155,25 +190,25 @@ before anything depends on it** (ROADMAP task 0.2).
 ## 3. Repository layout
 
 ```
-folio/
+papyrine/
 ├── Cargo.toml / package.json (pnpm)   # workspaces
 ├── crates/
-│   ├── folio-core/        # ids, errors, geometry, units, progress, cancellation, startup trace
+│   ├── papyrine-core/        # ids, errors, geometry, units, progress, cancellation, startup trace
 │   ├── qpdf-sys/          # vendored qpdf + C++ shim (cxx bridge) — §4.1
-│   ├── folio-cos/         # safe Rust API over the shim; RepairLog; object serializer
-│   ├── folio-content/     # content-stream lexer/parser/serializer (+ interpreter, v0.2)
-│   ├── folio-model/       # typed model: pages, annots, AcroForm, outlines, …
-│   ├── folio-ops/         # Command trait, EditContext, ChangeSet, History, journal records
-│   ├── folio-writer/      # incremental sections, ID-preserving full write, qpdf rewrite, atomic replace
-│   ├── folio-render/      # PDFium wrapper, tile math, render role main()
-│   ├── folio-text/        # search normalization; layout analysis (later)
-│   ├── folio-codecs/      # (v0.2) encoders/resampling
-│   ├── folio-optimize/    # (v0.2) audit, presets, pipeline, verify
-│   ├── folio-components/  # manifest, signature verification, install, helper launch
-│   ├── folio-ipc/         # protocol types; TS generation (ts-rs)
-│   ├── folio-sandbox/     # per-OS child sandboxes
-│   ├── folio-engine/      # engine role main(): doc actors, job scheduler
-│   └── folio-app/         # the single binary: role dispatch, CLI (clap)
+│   ├── papyrine-cos/         # safe Rust API over the shim; RepairLog; object serializer
+│   ├── papyrine-content/     # content-stream lexer/parser/serializer (+ interpreter, v0.2)
+│   ├── papyrine-model/       # typed model: pages, annots, AcroForm, outlines, …
+│   ├── papyrine-ops/         # Command trait, EditContext, ChangeSet, History, journal records
+│   ├── papyrine-writer/      # incremental sections, ID-preserving full write, qpdf rewrite, atomic replace
+│   ├── papyrine-render/      # PDFium wrapper, tile math, render role main()
+│   ├── papyrine-text/        # search normalization; layout analysis (later)
+│   ├── papyrine-codecs/      # (v0.2) encoders/resampling
+│   ├── papyrine-optimize/    # (v0.2) audit, presets, pipeline, verify
+│   ├── papyrine-components/  # manifest, signature verification, install, helper launch
+│   ├── papyrine-ipc/         # protocol types; TS generation (ts-rs)
+│   ├── papyrine-sandbox/     # per-OS child sandboxes
+│   ├── papyrine-engine/      # engine role main(): doc actors, job scheduler
+│   └── papyrine-app/         # the single binary: role dispatch, CLI (clap)
 ├── apps/desktop/          # Tauri config + src-tauri (host role) + src (React UI)
 ├── components/            # sources/build recipes for optional components
 ├── third_party/           # vendored native sources + native.toml (license manifest)
@@ -190,6 +225,27 @@ The crate dependency direction is acyclic:
 ## 4. Layers
 
 ### 4.1 Object layer: how Rust talks to qpdf (ADR-002)
+
+**Crypto provider: native only.** qpdf can be built with native (qpdf's
+own, Apache-2.0), OpenSSL or GnuTLS (LGPL) crypto. We build with:
+
+```
+-DUSE_IMPLICIT_CRYPTO=OFF -DREQUIRE_CRYPTO_NATIVE=ON
+-DREQUIRE_CRYPTO_OPENSSL=OFF -DREQUIRE_CRYPTO_GNUTLS=OFF -DDEFAULT_CRYPTO=native
+```
+
+Why native rather than OpenSSL:
+- qpdf only uses crypto for PDF encryption (RC4, AES, MD5, SHA-2) on local
+  files, where native is adequate.
+- It avoids a ~5 MB dependency and its per-platform build and patching.
+- Our own new cryptography (incremental-section encryption, and signatures in
+  v0.3) uses RustCrypto, not qpdf.
+
+The gate that enforces this:
+- a test calls the shim's `QPDFCryptoProvider::getRegisteredImpls()` and
+  asserts it returns exactly `["native"]`;
+- bundle inspection fails on `libgnutls*`, `libssl*` and `libcrypto*`;
+- the vendored-build CMake cache is checked in CI (§12).
 
 **Mechanism:** qpdf's **C API** where it is sufficient, plus a thin **C++
 shim** compiled into `qpdf-sys` and bridged with the [`cxx`] crate (typed,
@@ -220,7 +276,7 @@ ever crosses into Rust.
 | Custom input source over an mmap without copying | `InputSource` subclass |
 | Cheap object fingerprint for journal and consistency checks | `unparseBinary` + stream raw data hashing, done in C++ to avoid round trips |
 
-Content streams are **not** parsed with qpdf's tokenizer. `folio-content` is
+Content streams are **not** parsed with qpdf's tokenizer. `papyrine-content` is
 our own pure-Rust, fuzzed parser.
 
 **Threading:** a `QPDF` instance is not thread-safe. Each open document has
@@ -250,7 +306,7 @@ corpus (open success, repair success, peak RSS on the 2,000-page file). If
 lopdf turns out comparable on repair and memory, I'll bring the decision back
 to you.
 
-### 4.2 Content streams — `folio-content`
+### 4.2 Content streams — `papyrine-content`
 
 This is a pure-Rust lexer, a parser into `Op`s with byte spans, and a
 serializer with configurable number precision. The interpreter (graphics and
@@ -260,7 +316,7 @@ the inspector. v0.1 needs the parser and serializer, for annotation
 appearance streams and page-level operations. The crate is fuzzed from
 day one.
 
-### 4.3 Document model — `folio-model`
+### 4.3 Document model — `papyrine-model`
 
 This layer provides typed, lazily materialized views: the page tree with
 inheritance, boxes, rotation, labels, outlines, name trees, AcroForm fields,
@@ -269,7 +325,7 @@ flag, an encryption summary, and signature fields (read-only in v0.1). Each
 COS object has a generation counter bumped by the journal. Derived state is
 cached against those counters.
 
-### 4.4 Operations — `folio-ops`
+### 4.4 Operations — `papyrine-ops`
 
 ```rust
 pub trait Command: Send {
@@ -306,8 +362,8 @@ model. Both writers serialize from it.
 
 | Output | Who writes it | Object IDs | Used for |
 |---|---|---|---|
-| **Incremental section** | `folio-writer` (Rust): serializes dirty and new objects by walking qpdf handles; writes an xref table if the file used tables, otherwise an xref stream; `/Prev` chain; encrypts strings and streams with per-object keys when the doc is encrypted (RustCrypto) | Preserved (same as in memory) | **Default Save**; render snapshot sections; journal checkpoints |
-| **ID-preserving full write** | `folio-writer`: all live objects, one xref, no `/Prev` | Preserved | Snapshot compaction (L2), recovery checkpoints |
+| **Incremental section** | `papyrine-writer` (Rust): serializes dirty and new objects by walking qpdf handles; writes an xref table if the file used tables, otherwise an xref stream; `/Prev` chain; encrypts strings and streams with per-object keys when the doc is encrypted (RustCrypto) | Preserved (same as in memory) | **Default Save**; render snapshot sections; journal checkpoints |
+| **ID-preserving full write** | `papyrine-writer`: all live objects, one xref, no `/Prev` | Preserved | Snapshot compaction (L2), recovery checkpoints |
 | **Optimized full rewrite** | qpdf `QPDFWriter` (object and xref streams, compression, linearization, encryption changes, garbage collection) | **Renumbered** | "Save optimized", Compress, Sanitize, Redact, Remove security, Save As with "optimize" |
 
 **Staying consistent:**
@@ -352,7 +408,7 @@ The original is never touched on failure.
 - Low-res preview first, then sharp tiles, then prefetch.
 - A priority queue with cancellation (`FPDF_RenderPageBitmap_Start` with a
   pause callback).
-- Transport over the `folio://` scheme as raw RGBA, decoded with
+- Transport over the `papyrine://` scheme as raw RGBA, decoded with
   `createImageBitmap` (ADR-009).
 
 **Caches, sized to the memory budget:**
@@ -381,16 +437,51 @@ edit, and RSS, as functions of `k` (1–64) and section size (1 KB–64 MB).
 **Targets:** edit → visible tile updated < 100 ms p95, and renderer RSS
 growth < 10 MB over a 500-edit session.
 
-**Fallback if B1 misses:** "command mirroring". Frequent edits
-(annotations, page rotate/move/delete, form values) are applied directly to
-PDFium's in-memory document through its edit APIs (`FPDFAnnot_*`,
-`FPDF_MovePages`, `FPDFPage_SetRotation`, `FORM_*`). Snapshots then re-sync
-lazily at idle.
+**Fallback if B1 misses: command mirroring.** Frequent edits (annotations,
+page rotate/move/delete, form values) are also applied directly to PDFium's
+in-memory document through its edit APIs (`FPDFAnnot_*`, `FPDF_MovePages`,
+`FPDFPage_SetRotation`, `FPDFAnnot_SetStringValue` for form values), so the
+visible tile updates without a re-open.
 
-### 4.7 Text — `folio-text`
+**How qpdf and PDFium stay consistent under mirroring:**
+
+1. **qpdf is the only source of truth.** The PDFium document is a
+   display-only replica. Nothing is ever saved, exported, searched for
+   results that feed back into edits, or journalled from PDFium. Saves,
+   journal records and every command's ChangeSet come from qpdf alone.
+2. **Commit order.** A command commits in the engine (qpdf) first. Only a
+   successful commit produces a `Mirror { seq, op }` message for the
+   renderer. A command that fails in qpdf is never mirrored.
+3. **Mirror ops are declarative** and derived from the ChangeSet, not
+   re-running command logic. Example: "set annotation N's /Rect, /C and
+   appearance stream to these bytes". PDFium gets the same appearance-stream
+   bytes qpdf stored, so the two render identically.
+4. **Only whitelisted, mirror-safe command types are mirrored.** Everything
+   else, and any mirror op that PDFium rejects, triggers an immediate
+   snapshot re-open, which is always correct.
+5. **Epochs:**
+   - The renderer tags every tile with the replica epoch `(base_id,
+     last_seq)`.
+   - At idle, or after 50 mirrored ops or 30 s, the renderer does a **resync**:
+     it re-opens from a qpdf snapshot and discards the replica.
+   - Tiles rendered from the replica for pages the resync changed are
+     invalidated.
+   - Divergence is therefore bounded in time and never persistent.
+6. **Undo** is mirrored as the inverse declarative op, derived from the
+   before-images, or falls back to a re-open.
+7. **Verification in CI:** for every mirror-safe command, a test renders the
+   affected page (a) from the mirrored replica and (b) from a fresh qpdf
+   snapshot, and requires pixel identity (or ≤ 1/255 per channel for
+   anti-aliasing). A randomized property test runs 1,000-op sequences with
+   the same comparison at the end.
+8. **Form field typing** never happens inside PDFium's form-fill
+   environment. Our UI overlay edits the value, which becomes an engine
+   command and then a mirror op. PDFium never owns field state.
+
+### 4.7 Text — `papyrine-text`
 
 Extraction, hit testing and char boxes come from PDFium in the renderer. On
-top of that `folio-text` does search normalization: NFKC, ligature
+top of that `papyrine-text` does search normalization: NFKC, ligature
 expansion, hyphenation joining, case and diacritic folding, and bidi logical
 order. Results stream as `SearchHit` events. Layout analysis (blocks,
 paragraphs, reading order) arrives with v0.4 Edit.
@@ -408,9 +499,9 @@ paragraphs, reading order) arrives with v0.4 Edit.
 - **IPC client:** generated TS types. Requests carry a `RequestId`; long jobs
   return a `JobId` with progress events and `cancel(jobId)`.
 
-### 4.9 IPC — `folio-ipc`
+### 4.9 IPC — `papyrine-ipc`
 
-- **UI ⇄ host:** Tauri commands, Tauri events, and the `folio://` scheme.
+- **UI ⇄ host:** Tauri commands, Tauri events, and the `papyrine://` scheme.
 - **Host ⇄ children:** `ipc-channel`, `serde` + `postcard`, shared memory
   for pixels and sections, and native handle passing.
 - **Cancellation:** `CancelToken` is checked at most ~50 ms apart. A
@@ -432,11 +523,13 @@ paragraphs, reading order) arrives with v0.4 Edit.
    (§15).
 
 **Edit:**
-1. The UI sends `Execute(cmd)` to the engine.
-2. The actor applies it: ChangeSet, a journal append (§7), a history push,
-   and a new snapshot section.
-3. The host invalidates tiles for the affected pages.
-4. The renderer re-opens (debounced) and the UI re-requests only visible
+1. The UI sends `Execute(cmd)` to the **host**.
+2. The host's journal writer appends an `Intent` record (§7), then forwards
+   the command to the engine.
+3. The actor applies it: ChangeSet, history push, new snapshot section. It
+   returns the after-images, and the host appends a `Commit` record.
+4. The host invalidates tiles for the affected pages.
+5. The renderer re-opens (debounced) and the UI re-requests only visible
    invalidated tiles.
 
 **Save:** the writer (§4.5), atomic replace, the journal is marked clean, and
@@ -469,27 +562,45 @@ This replaces timer-based autosave.
 - `journal.log`: an append-only record log. Each record is length-prefixed
   and CRC32C-checksummed.
 
-**Record contents:**
-- `seq`, a timestamp, and the command's `describe()`;
-- `params()`;
-- the **after-images** of every object in the ChangeSet: serialized object
-  plus stream bytes, zstd-compressed if > 4 KB;
-- the list of created object IDs.
+**The journal is written by the host, outside the engine, and each command's
+record is written before the engine applies it** (write-ahead). The engine
+has no filesystem access (§8), and an engine crash must not be able to lose
+or corrupt the journal.
 
-Records hold after-images rather than just params so replay is
-deterministic: it never re-runs command logic.
+**Two records per command:**
 
-**Group commit:**
-- Records are written by the host's journal task as soon as the engine
-  commits.
-- `fsync` is batched to at most one per **1 s** (configurable 0.2–5 s), and
-  an immediate `fsync` follows any command with a large payload
-  (> 1 MB, e.g. an inserted file).
-- **A crash loses at most ~1 s of work.** Journal I/O never blocks the UI
-  thread or the actor.
+| Record | Written | Contents |
+|---|---|---|
+| `Intent{seq}` | By the host **before** forwarding the command to the engine | `seq`, timestamp, command name, `params()`, and every **external input** the command needs (e.g. the bytes of an inserted PDF or image, stored in a side blob `blobs/<blake3>` so replay never depends on files that may have changed) |
+| `Commit{seq}` | By the host when the engine returns the ChangeSet | the **after-images** of every object in the ChangeSet (serialized object + stream bytes, zstd if > 4 KB), created object IDs, and a BLAKE3 of the after-image set |
+
+Every record is length-prefixed and CRC32C-checksummed.
+
+**The ordering guarantee:**
+1. The host's `write()` of the `Intent` completes before the engine receives
+   the command.
+2. After a *process* crash (host, engine or renderer), the intent is already
+   in the OS page cache, so it survives.
+3. `fsync` is group-committed at most once per **1 s** (configurable
+   0.2–5 s), so a power loss or kernel panic loses at most ~1 s. A command
+   with a large payload (> 1 MB) waits for its own `fsync` before it is
+   forwarded.
+4. The write is a buffered append of a few KB (µs), so the write-ahead step
+   adds no user-visible latency. The `fsync` never blocks the UI or the
+   actor.
+
+**Replay rules:**
+- `Intent` + `Commit`: apply the after-images directly. This is
+  deterministic and never re-runs command logic.
+- A trailing `Intent` without `Commit` means the process died *during*
+  apply. By default recovery does **not** re-execute it, because the
+  command may itself be what crashed the engine. Instead the user is told:
+  "Your last action, *Rotate pages 3–5*, didn't finish. [Redo it] [Skip]".
+  Redo re-runs it from `params()` and the stored inputs.
+- A torn tail (bad CRC) is truncated at the last valid record.
 
 **Checkpoints:** when the journal exceeds 32 MB or 500 records, the engine
-writes an ID-preserving checkpoint (`checkpoint.pdfu`, a merged incremental
+produces, and the host writes, an ID-preserving checkpoint (`checkpoint.pdfu`, a merged incremental
 section over the original) and truncates the journal.
 
 **Recovery:**
@@ -502,9 +613,11 @@ section over the original) and truncates the journal.
 4. If the original changed on disk, it offers **Open recovered copy**
    instead.
 
-**Engine crash (not app crash):** the supervisor restarts the engine, which
-replays from the journal plus in-flight state held by the host. The user
-sees "Engine restarted; no changes lost."
+**Engine crash (not app crash):** the supervisor restarts the engine and
+the host replays the journal into it. The user sees "Engine restarted; no
+changes lost." If the in-flight command crashed the engine, it is skipped
+and reported as above. A command that crashes the engine twice is
+quarantined for that document, so there is no crash loop.
 
 **Cleanup:** the journal is deleted on a clean save or close ("Don't save"),
 and recovery directories older than 30 days are pruned, with a notice.
@@ -533,7 +646,7 @@ a codec (C/C++) to read or write the user's files or to exfiltrate data.
 | PDF JavaScript | Off by default; only available through the optional Form Scripts component, running inside a sandboxed helper with CPU and memory limits and no network or filesystem API (ADR-006) |
 | Actions | Launch, URI, GoToR and embedded-file-open actions go to the host, which always prompts with the target shown |
 | Secrets | Passwords and keys held in `zeroize`d buffers, redacted in logs by a `Secret<T>` type, persisted only in the OS keychain on opt-in |
-| Fuzzing | cargo-fuzz targets for `folio-content`, qpdf load via the shim, the serializer, codecs and font loaders; 10 min per PR, nightly 1 h per target; OSS-Fuzz application once the repo is public and stable |
+| Fuzzing | cargo-fuzz targets for `papyrine-content`, qpdf load via the shim, the serializer, codecs and font loaders; 10 min per PR, nightly 1 h per target; OSS-Fuzz application once the repo is public and stable |
 | Supply chain | `cargo-deny` (licenses, advisories, sources), `cargo-audit`, `pnpm audit`, committed lockfiles, vendored native sources pinned by hash |
 
 **Components add:**
@@ -546,6 +659,8 @@ a codec (C/C++) to read or write the user's files or to exfiltrate data.
 
 ## 9. Optional components (ADR-011)
 
+### 9.1 Components
+
 Heavy capabilities are **not** in the base install. A component is either a
 **data pack** or a **helper executable** (+ data).
 
@@ -555,11 +670,11 @@ Heavy capabilities are **not** in the base install. A component is either a
 | `ocr-lang-<code>` (tessdata_fast; `-best` variants optional) | data | 1–15 MB each | v0.6 |
 | `form-scripts` (form JavaScript runtime, ADR-006) | helper | ~1 MB (QuickJS) or ~12 MB (PDFium-V8 variant) | v0.5 |
 | `mrc` (MRC scan compression) | helper | ~3 MB | v0.6 |
-| `fonts-cjk`, `fonts-indic`, `fonts-arabic-hebrew`, `fonts-extra` | data | 5–40 MB | v0.1 (on demand when typing unsupported scripts), v0.4 |
+| `fonts-cjk`, `fonts-indic`, `fonts-arabic-hebrew`, `fonts-extra` | data | 5–40 MB | v0.5 (v0.1 uses installed system fonts via fontdb for non-Latin text) |
 | `icc-print` (ECI/FOGRA/GRACoL profiles, where redistributable) | data | ~5 MB | v0.7 |
 | `spell-<lang>` (Hunspell dictionaries, Linux only; macOS and Windows use OS spell check) | data | ~1 MB each | v0.4 |
 
-**Package format:** a `.folio-component` file (zstd tar) containing:
+**Package format:** a `.papyrine-component` file (zstd tar) containing:
 - `component.toml`:
   - `id`, `version`, `kind`, `platforms` (os/arch);
   - `min_app` / `max_app` and the IPC protocol range;
@@ -571,10 +686,10 @@ Heavy capabilities are **not** in the base install. A component is either a
 **Catalog:**
 - A signed `components.json` published as a GitHub Release asset on the
   project repo. That is static hosting, no server.
-- The app embeds the catalog public keys and supports key rotation (the
-  catalog can list a successor key signed by the current one).
-- The catalog is fetched **only** on user action, or if the user enabled
-  "check for component updates". There is no background network by default.
+- It is signed by an online **component signing key** that the embedded
+  root keys authorize (§9.3).
+- The catalog is fetched **only** on user action, or if the user enabled the
+  update check (§9.2). There is no background network by default.
 
 **Install flow:**
 1. On first use of a feature, a prompt appears: "Recognize Text needs the OCR
@@ -585,10 +700,10 @@ Heavy capabilities are **not** in the base install. A component is either a
 3. The previous version is kept until the new one launches successfully.
 
 **Offline and enterprise installs:**
-- "Install from file…" accepts `.folio-component` files.
+- "Install from file…" accepts `.papyrine-component` files.
 - A mirror URL or directory can be set in settings or in a policy file
   (`/etc`, the registry, or a macOS profile).
-- The CLI has `folio components list|install|remove|verify`.
+- The CLI has `papyrine components list|install|remove|verify`.
 
 **Runtime:**
 - The component manager resolves the helper binary.
@@ -596,16 +711,101 @@ Heavy capabilities are **not** in the base install. A component is either a
   exits after 60 s idle.
 - Data packs are opened read-only by the process that needs them.
 
-**Platform signing:** release helper executables are signed and notarized
-with the app's identity. Unsigned development builds show "unsigned
-component" in the manager.
-
 **Preferences → Components** lists what is installed, disk use, and
 update/remove actions. Each component's notices are merged into About →
 Licenses.
 
-**Lazy loading in the base install (the startup budget):** code that is part
-of the base install but not core is initialized on first use, not at launch:
+### 9.2 Opt-in security update check
+
+- **Off by default.** First run asks once, with no pre-selected answer:
+  "Check for security updates once a day? Papyrine sends no identifiers:
+  it only downloads a small public file." The answer is stored and can be
+  changed in Preferences → Privacy.
+- **What it fetches:** one static file, `updates.json`, from the latest
+  GitHub Release of `manjunathsharma10/papyrine`, plus `components.json`
+  when component updates are enabled. It is an HTTPS GET with no cookies,
+  no query string and no custom headers beyond a generic User-Agent. No
+  version, OS or install ID is sent; comparison happens locally.
+- **What it contains:** per-channel latest version, a severity flag
+  (`security` / `normal`), a short advisory text, affected version ranges,
+  download URLs with SHA-256, and an Ed25519 signature (§9.3). An unsigned
+  or badly signed file is ignored and logged.
+- **Behaviour:**
+  - For a `security` release affecting the installed version, a
+    non-modal banner appears: "Security update available (v0.1.3): fixes a
+    crash when opening crafted PDFs. [Download] [Details] [Later]".
+  - Normal releases show only in About.
+  - Download verifies the SHA-256 and the signature, then opens the
+    installer, or uses the Tauri updater once v1.0 auto-update exists. There
+    is **no silent install.**
+- **Offline and enterprise:** a policy setting disables the check entirely
+  or points it at a mirror.
+- The CLI has `papyrine update check`; it is never automatic.
+
+### 9.3 Signing keys: storage and rotation
+
+Four kinds of key, all Ed25519 unless noted:
+
+| Key | Signs | Storage | Rotation |
+|---|---|---|---|
+| **Root keys** (2: primary + backup) | Only the `keyring.json` that authorizes the online keys | **Offline.** Generated on an air-gapped machine; the private keys live on two hardware security keys (YubiKey, OpenPGP/PIV Ed25519) kept in different physical places, with an encrypted paper backup of each seed in a safe. Never on a networked machine or in CI | Root public keys are embedded in the app. A root is replaced by an app release that embeds the new root, signed by the other root. Either root alone can sign a keyring, so losing one is survivable |
+| **Release signing key** (updates.json, installer hashes) | `updates.json` | GitHub Actions **environment secret** in a protected `release` environment (required reviewer = owner; main-branch-only; no fork PRs) | Rotated every 12 months or on suspicion. The new public key is added to `keyring.json` (signed by a root) with validity dates; the old key stays valid for verification until its expiry |
+| **Component signing key** | `components.json` and each component manifest | Same protected environment, separate secret | Same as the release key |
+| **Tauri updater key** (v1.0) | Updater artifacts (minisign) | Same protected environment | Tauri embeds one updater public key per build, so rotation ships the new key in a release signed with the old key |
+
+- **Keyring:** `keyring.json` lists the online keys with their purpose,
+  `not_before` and `not_after`, and revocations. It is signed by a root, and
+  fetched and cached alongside `updates.json` and `components.json`.
+- **Compromise of an online key:** a root signs a keyring that revokes it.
+  Clients that fetch it stop trusting the revoked key immediately. Offline
+  clients learn on their next check, and every app release also bundles the
+  latest keyring.
+- **Documentation:** the key ceremony, custody and incident steps go in
+  `docs/KEYS.md`; the public threat model goes in `SECURITY.md`.
+- **Dev builds** use a separate dev root that release builds reject.
+- **Timing:** keys are created before the first public release (end of
+  v0.1). Until then nothing signed is published.
+
+### 9.4 Code signing and notarization of downloadable helpers
+
+Component helpers are executables that the app downloads, so the OS must
+trust them like the app itself.
+
+- **macOS:**
+  - Each helper is packaged as a minimal **app bundle**
+    (`PapyrineOCR.app/Contents/MacOS/papyrine-ocr`), because a bare Mach-O
+    can't carry a stapled ticket.
+  - It is signed with the same Developer ID Application identity as the app,
+    with hardened runtime and minimal entitlements (none for JIT; QuickJS
+    needs none).
+  - It is notarized with `notarytool` and **stapled**, so offline launches
+    pass Gatekeeper.
+  - On install, the host checks
+    `SecStaticCodeCheckValidity` against the requirement
+    `anchor apple generic and certificate leaf[subject.OU] = "<TEAMID>"` in
+    addition to our Ed25519 signature.
+  - Downloads are written without a quarantine flag, because our own
+    signature check replaces Gatekeeper's download prompt. Notarization
+    still covers the case of users copying packs manually.
+- **Windows:**
+  - Authenticode-signed with the app's certificate plus an RFC 3161
+    timestamp.
+  - On install, the host checks `WinVerifyTrust` and that the signer
+    matches the app's own signer.
+  - EV or Azure Trusted Signing avoids SmartScreen warnings.
+- **Linux:** the Ed25519 signature only; Flatpak builds ship components as
+  Flatpak extensions where possible.
+- **CI:** the release workflow signs, notarizes and staples helpers in the
+  same job as the app, then builds the `.papyrine-component` and signs its
+  manifest.
+- **Until certificates exist:** helper builds are marked `unsigned`. Release
+  builds refuse unsigned components unless Preferences → Advanced →
+  "Allow unsigned components (developers)" is on, which shows a warning.
+
+### 9.5 Lazy loading in the base install
+
+To protect the startup budget, code that is part of the base install but
+not core is initialized on first use, not at launch:
 - codecs, the rayon pool, the fontdb system font scan, lcms2 transforms,
   the component catalog, and the search index;
 - enforced by the startup-trace allowlist gate (§1.1).
@@ -625,7 +825,7 @@ of the base install but not core is initialized on first use, not at launch:
 - **E2E:** `tauri-driver` WebDriver on Windows and Linux. On macOS,
   Playwright against the real engine via a dev-only bridge.
 - **Release:** per-arch `.dmg`, `.msi`/NSIS, `.deb`/`.rpm`/Flatpak/AppImage,
-  plus components as signed `.folio-component` assets. Code signing is wired
+  plus components as signed `.papyrine-component` assets. Code signing is wired
   but skipped until certificates exist.
 
 ---
@@ -639,9 +839,36 @@ of the base install but not core is initialized on first use, not at launch:
   ISpellChecker); spellbook + dictionary components on Linux.
 - **Read Aloud:** the `tts` crate over OS engines.
 
-### 11.2 Printing
-Native print dialogs through platform APIs (v0.1 basic print is proposed in
-ROADMAP; advanced features in v0.8).
+### 11.2 Printing (native APIs, not webview print)
+
+**Basic print scope:**
+- the OS print dialog;
+- all / current / range of pages;
+- fit, shrink oversized, or actual size, with auto-rotate and centering;
+- print comments on or off (per the annotation `/Print` flag);
+- form values included;
+- progress and cancel.
+
+Copies, duplex and paper come from the OS dialog.
+
+**Shared pipeline.** The engine produces a **print PDF**: the page subset,
+annotations filtered by print flag, form appearances generated, from the
+qpdf-normalized document, so damaged files print the way they display.
+Printing is never done by the webview.
+
+| Platform | Approach | Estimate |
+|---|---|---|
+| Shared | Print-PDF generation, scaling/rotation math with unit tests, the print options UI, progress/cancel | 4–5 days |
+| **macOS** | `NSPrintOperation` via objc2, using PDFKit's `PDFDocument.printOperation(for:scalingMode:autoRotate:)` on the print PDF. This is vector output with the native dialog and preview. A "Print as image" option renders pages with PDFium at printer DPI instead, for files Quartz mishandles | 3–4 days |
+| **Windows** | There is no OS API to "print a PDF", so this is Chromium's approach. Win32 `PrintDlgEx` provides the printer DC and DEVMODE (paper, orientation, duplex, copies). The **sandboxed renderer** renders each page with PDFium into an **EMF** (`FPDF_SetPrintMode`, `FPDF_RenderPage` with `FPDF_PRINTING`) and sends it to the host, which plays it into the printer DC (`PlayEnhMetaFile`) on a background thread with `StartDoc/StartPage/EndPage`. That way PDF parsing never runs in the unsandboxed host. The work includes printable-area offsets, per-page orientation, cancel via `AbortDoc`, and a banded "print as image" fallback for drivers that mishandle EMF transparency | 8–10 days |
+| **Linux** | `GtkPrintUnixDialog` + `GtkPrintJob` with `gtk_print_job_set_source_file(print.pdf)`, which sends the PDF straight to CUPS (vector). Inside Flatpak, GTK uses the `org.freedesktop.portal.Print` portal automatically. Any conversion CUPS does uses the *system's* filters, which we don't ship or link | 4–5 days |
+| Test infrastructure | Virtual printers in CI: CUPS-PDF (Linux), "Microsoft Print to PDF" with an output path (Windows), and `NSPrintInfo` job disposition "save" (macOS). Captured output is rendered and compared to expected pages | 2 days |
+| **Total** | | **21–26 working days (~4–5 weeks)** |
+
+My v2 estimate of "~1 week" was wrong. It didn't count Windows, which has
+no OS PDF printing, or the test infrastructure. Advanced printing (N-up,
+booklet, poster, …) stays in v0.8. The v0.1 vs v0.1.x decision is yours
+(ROADMAP 1.17).
 
 ### 11.3 Scanning
 WIA/TWAIN, ImageCaptureCore, and SANE (runtime-only).
@@ -649,16 +876,38 @@ WIA/TWAIN, ImageCaptureCore, and SANE (runtime-only).
 ### 11.4 HEIC/HEIF import (ADR-013)
 - **macOS:** ImageIO (`CGImageSourceCreateWithData`), available on every
   supported macOS. No extra code or license.
-- **Windows:** WIC. It requires Microsoft's *HEIF Image Extensions* (free)
-  and *HEVC Video Extensions* (a Store item; preinstalled on many OEM
-  Windows 11 machines). If WIC reports no decoder, Folio says exactly which
-  extension to install and opens the Store page on request.
+- **Windows:** WIC. It needs two Microsoft Store extensions:
+  - *HEIF Image Extensions* (free) for the container;
+  - *HEVC Video Extensions* for the codec. This is a paid Store item, though
+    many OEM Windows 11 machines have the free "from device manufacturer"
+    edition preinstalled.
+
+  Papyrine detects which one is missing, and the message is specific:
+  - **HEVC missing:** WIC finds the HEIF container decoder, but frame decode
+    fails with `WINCODEC_ERR_COMPONENTNOTFOUND`.
+  - **HEIF missing:** there is no decoder for `GUID_ContainerFormatHeif`.
+
+  Message (HEVC case):
+  > **Can't open "IMG_2041.heic"**
+  > Windows needs Microsoft's **HEVC Video Extensions** to read HEIC photos.
+  > It's available from the Microsoft Store (it may cost a small fee).
+  > **[Open Microsoft Store]** **[Convert another way…]** **[Cancel]**
+
+  - "Open Microsoft Store" launches the `ms-windows-store://pdp/?ProductId=…`
+    link for the right extension. The IDs are verified at implementation and
+    kept in one constant.
+  - "Convert another way…" explains exporting the photo as JPEG from the
+    Photos app.
+  - In batch imports, missing HEIC files are listed in one summary rather
+    than one dialog per file.
+  - The check runs once per session and is cached, and it re-runs after the
+    user returns from the Store.
 - **Linux:** `dlopen("libheif.so.1")` at runtime if the system has it (most
   distros package it; it is included in recent Freedesktop/GNOME Flatpak
   runtimes). It is not bundled; LGPL and HEVC patent exposure are ADR-008
-  and ADR-013 concerns. Otherwise Folio shows a message explaining how to
+  and ADR-013 concerns. Otherwise Papyrine shows a message explaining how to
   install libheif, or suggests converting with the system image tool.
-- Folio never ships an HEVC decoder of its own on any platform.
+- Papyrine never ships an HEVC decoder of its own on any platform.
 
 ---
 
@@ -673,15 +922,20 @@ OFL-1.1 (fonts only).
 **Banned in shipped artifacts:**
 - GPL and AGPL at any level.
 - LGPL except runtime-`dlopen`ed, optional system libraries.
-- By name: MuPDF, Ghostscript, jbig2dec, dssim, Poppler, libheif (bundled).
+- By name: MuPDF, Ghostscript, jbig2dec, dssim, Poppler, libheif (bundled),
+  and GnuTLS (LGPL) anywhere.
+- **qpdf's crypto provider must be native** (§4.1). OpenSSL is also
+  license-compatible (Apache-2.0), but it is not used, and the gate rejects
+  it too so the configuration can't drift.
 
-**Three separate inventories:**
+**Separate inventories:**
 
 | Inventory | Source of truth | Gate |
 |---|---|---|
-| Shipped Rust | `cargo metadata` for the `folio-app` binary graph, **excluding dev-dependencies** (`cargo-deny` with `exclude-dev = true`, `deny.toml`) | Strict allowlist + name bans |
+| Shipped Rust | `cargo metadata` for the `papyrine-app` binary graph, **excluding dev-dependencies** (`cargo-deny` with `exclude-dev = true`, `deny.toml`) | Strict allowlist + name bans |
 | Shipped JS | `pnpm licenses list --prod --json` for `apps/desktop` | Strict allowlist + name bans |
 | Shipped native (vendored C/C++ and PDFium) | `third_party/native.toml`: one entry per library with version, SPDX, license and notice file paths, and the PDFium sub-licenses (FreeType, ICU, lcms, libjpeg-turbo, OpenJPEG, libpng, zlib, abseil, AGG, fast_float, simdutf, llvm-libc) | Every vendored dir must have an entry; entries must pass the allowlist |
+| qpdf build configuration | The CMake cache of the vendored qpdf build + a runtime test | `DEFAULT_CRYPTO=native`, `REQUIRE_CRYPTO_GNUTLS=OFF`, `REQUIRE_CRYPTO_OPENSSL=OFF`; `getRegisteredImpls() == ["native"]` |
 | Components | each `component.toml` | Same allowlist; notices required |
 | Test-only oracles (Poppler, PDF.js, veraPDF, pyHanko, pikepdf, EU DSS, scikit-image) | `tools/test-oracles.toml` | Allowed to be any license, but must never appear in shipped inventories |
 
@@ -691,7 +945,10 @@ OFL-1.1 (fonts only).
 - lists linked libraries (`otool -L`, `readelf -d`, `llvm-readobj --coff-imports`);
 - fails on any library not in `native.toml` or on the system allowlist;
 - fails on any banned name (`libpoppler*`, `libmupdf*`, `libgs*`,
-  `libjbig2dec*`, `libheif*`, …).
+  `libjbig2dec*`, `libheif*`, `libgnutls*`, `libssl*`, `libcrypto*`,
+  …);
+- scans static archives' symbol tables for GnuTLS/OpenSSL symbol prefixes
+  (`gnutls_`, `SSL_`, `EVP_`), which catches static linking.
 
 Poppler is only ever installed via apt/brew inside CI test jobs, as a test
 oracle.
@@ -719,6 +976,7 @@ licenses are to be confirmed by the gate when each is added.
 | Tauri 2 (+ dialog, window-state plugins) | App shell | MIT/Apache-2.0 | 0.1 |
 | qpdf ≥ 12 (vendored) + zlib-ng + libjpeg-turbo | Object layer, repair, rewrite, linearize, encrypt | Apache-2.0 · Zlib · IJG/BSD-3/Zlib | 0.1 |
 | cxx | Rust ⇄ C++ shim bridge | MIT/Apache-2.0 | 0.1 |
+| *(own code)* AF-subset recognizer + formatter | Tokenizer and strict recognizer for form scripts (ADR-006); **no third-party JS parser** | MIT/Apache-2.0 (ours) | 0.1 |
 | PDFium (prebuilt, no V8/XFA) + pdfium-render | Rendering, text, form widgets | BSD-3/Apache-2.0 + sub-licenses (§12) · MIT/Apache-2.0 | 0.1 |
 | ipc-channel, serde, postcard, serde_json, ts-rs | IPC and types | MIT/Apache-2.0 · MIT | 0.1 |
 | tokio, rayon, crossbeam, parking_lot | Async and parallelism | MIT/Apache-2.0 | 0.1 |
@@ -729,7 +987,7 @@ licenses are to be confirmed by the gate when each is added.
 | ttf-parser, rustybuzz, fontdb, subsetter | Fonts for annotations and typing, subsetting | MIT/Apache · MIT · MIT · MIT/Apache | 0.1 |
 | landlock, seccompiler, windows-rs, objc2 | Sandbox and OS APIs | MIT/Apache-2.0 | 0.1 |
 | zeroize, secrecy | Secret hygiene | MIT/Apache-2.0 | 0.1 |
-| ed25519-dalek, sha2, ureq + rustls | Component verification and download (user-initiated) | BSD-3 · MIT/Apache · MIT/Apache, ISC | 0.1 |
+| ed25519-dalek, sha2, ureq + rustls | Signed update check (v0.1) and component verification and download (v0.5); user-initiated only | BSD-3 · MIT/Apache · MIT/Apache, ISC | 0.1 |
 | Base fonts (Noto Sans/Serif/Mono Latin-Greek-Cyrillic subsets) | Typing and annotation text | OFL-1.1 | 0.1 |
 | React, Zustand, TanStack Virtual, Radix UI, i18next | UI | MIT | 0.1 |
 | mozjpeg | JPEG encode | IJG/BSD-3/Zlib | 0.2 |
@@ -810,8 +1068,9 @@ The corpus is never committed:
 | Problem | Approach |
 |---|---|
 | qpdf and PDFium disagree on damaged files | Render base = qpdf's repaired ID-preserving write when repair occurred |
-| Snapshot re-open cost | B1 first; compaction L1/L2; command-mirroring fallback |
-| Form JS without V8 | ADR-006: native AF subset in v0.1; optional component later |
+| Snapshot re-open cost | B1 first; compaction L1/L2; command-mirroring fallback with qpdf as sole truth (§4.6) |
+| Double memory for large docs (qpdf + PDFium) | Shared mmap, no heap copies, capped caches, large-document memory gate (§1.2) |
+| Form JS without V8 | ADR-006: native AF subset + Adobe-boilerplate recognizer in v0.1 (measured: 125/134 sampled JS forms, 14/23 excluding IRS); QuickJS component later |
 | Paragraph text editing | v0.4; layout analysis + rustybuzz; de-risking prototypes earlier |
 | Lossy JBIG2 character substitution (the Xerox incident) | Lossless generic-region by default in every preset; lossy symbol mode only as explicit opt-in (ADR-018) |
 | Webview memory floor | Measured in Spike 0.1; per-OS budgets (§1.2) |

@@ -1,0 +1,33 @@
+---
+import { product } from '../config';
+import Scene from '../components/Scene.astro';
+// Greeked body text: [y, width] in a 300 x 390 page.
+const lines = Array.from({ length: 15 }, (_, i) => [66 + i * 18, [236, 228, 236, 170, 232, 220, 236, 132, 228, 236, 200, 236, 214, 236, 110][i]]);
+---
+<Scene id="annotate" num="02" kicker="Annotate" title="Mark it up.|Keep it readable." artClass="annot-art">
+  <Fragment slot="text">
+    <p>Highlight a line, leave a comment, draw a circle. Marks go on top of the page as standard PDF annotations, so the file underneath stays intact and other PDF apps can still read your notes.</p>
+  </Fragment>
+  <figure>
+    <div class="page annot-page">
+      <svg viewBox="0 0 300 390" role="img" aria-label="A document page. Two lines of text are highlighted in yellow, a comment bubble appears beside them, and a freehand pen stroke circles a phrase and underlines another." focusable="false">
+        <rect class="pl-ink" x="32" y="26" width="118" height="14" rx="3"/>
+        {lines.map(([y, w]) => <rect class="pl" x="32" y={y} width={w} height="7" rx="3.5"/>)}
+        <g style="mix-blend-mode:multiply">
+          <rect class="fb o-l a k-grow-x hl" x="30" y="61" width="204" height="17" rx="3" style="--a:.04;--b:.28"/>
+          <rect class="fb o-l a k-grow-x hl" x="30" y="115" width="150" height="17" rx="3" style="--a:.22;--b:.42"/>
+        </g>
+        <g class="fb o-bl a k-pop bubble" style="--a:.42;--b:.56">
+          <path d="M196 88h84a8 8 0 0 1 8 8v42a8 8 0 0 1-8 8h-70l-16 14 4-14h-2a8 8 0 0 1-8-8V96a8 8 0 0 1 8-8z" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+          <circle cx="212" cy="106" r="6" fill="var(--accent)"/>
+          <rect x="224" y="102" width="48" height="6" rx="3" fill="var(--paper-ink)" opacity=".75"/>
+          <rect x="206" y="120" width="74" height="5" rx="2.5" fill="var(--paper-ink)" opacity=".4"/>
+          <rect x="206" y="131" width="52" height="5" rx="2.5" fill="var(--paper-ink)" opacity=".4"/>
+        </g>
+        <path class="draw a k-draw lin pen" pathLength="1" style="--a:.5;--b:.8" d="M40 234C24 206 70 196 126 200S206 214 190 240s-92 22-140 12c-18-4-22-20-8-30"/>
+        <path class="draw a k-draw lin pen" pathLength="1" style="--a:.78;--b:.96" d="M36 316q14-9 28 0t28 0 28 0 28 0 28 0"/>
+      </svg>
+    </div>
+    <figcaption>Concept illustration of {product.name}’s annotation tools: highlight, comment and pen.</figcaption>
+  </figure>
+</Scene>

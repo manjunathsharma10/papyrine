@@ -1,0 +1,40 @@
+---
+import Page from '../components/Page.astro';
+import Scene from '../components/Scene.astro';
+const a = ['1', '2', '3', '4'];
+const b = ['i', 'ii', 'iii'];
+---
+<Scene id="organise" mode="pin" num="03" kicker="Organise pages" title="Rearrange pages|like paper." pin="230svh" artClass="pin-art org-art">
+  <Fragment slot="text">
+    <p>Drag pages into order, turn one the right way up, or merge two documents into one. Every step can be undone.</p>
+    <ol class="steps">
+      <li class="a k-dim" style="--a:.02;--b:.08"><b>1</b> Reorder</li>
+      <li class="a k-dim" style="--a:.3;--b:.36"><b>2</b> Rotate</li>
+      <li class="a k-dim" style="--a:.55;--b:.61"><b>3</b> Merge</li>
+    </ol>
+  </Fragment>
+  <figure>
+    <div class="org" role="img" aria-label="Two documents. In the first, pages 2 and 3 swap into order. In the second, a sideways page turns upright. Then both documents slide together into one merged file of seven pages.">
+      <div class="frame frame-a a k-out" style="--a:.5;--b:.62"><span>report.pdf · 4 pages</span></div>
+      <div class="frame frame-b a k-out" style="--a:.5;--b:.62"><span>appendix.pdf · 3 pages</span></div>
+      <div class="frame frame-m a k-fade" style="--a:.86;--b:.96"><span>merged.pdf · 7 pages</span></div>
+      <div class="row row-a a k-move" style="--a:.55;--b:.9">
+        {a.map((n, i) => (
+          <div class:list={['pg pg-a a k-move', { swap: i === 1 || i === 2 }]} style={i === 1 ? '--a:.05;--b:.28;--x0:calc(var(--step) * 1cqw)' : i === 2 ? '--a:.05;--b:.28;--x0:calc(var(--step) * -1cqw)' : undefined}>
+            <Page class="pgp" seed={i} title={false}><span class="pg-num">{n}</span></Page>
+          </div>
+        ))}
+      </div>
+      <div class="row row-b a k-move" style="--a:.55;--b:.9">
+        {b.map((n, i) => (
+          <div class="pg pg-b">
+            <div class:list={['pg-in', { rot: i === 1 }, 'a', { 'k-rot': i === 1 }]} style={i === 1 ? '--a:.3;--b:.5;--r0:90deg' : undefined}>
+              <Page class="pgp" seed={i + 5} title={false}><span class="pg-num">{n}</span></Page>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <figcaption>Concept illustration of page organising.</figcaption>
+  </figure>
+</Scene>

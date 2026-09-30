@@ -1,0 +1,27 @@
+---
+import Scene from '../components/Scene.astro';
+import GitHubMark from '../components/GitHubMark.astro';
+import { product, repo, license, milestones } from '../config';
+---
+<Scene id="open-source" num="08" kicker="Open source" title="Built in|the open." chip="" flip artClass="os-art">
+  <Fragment slot="text">
+    <p>{product.name} is licensed <b>{license.spdx}</b>, so you can use it under either licence. It is pre-release: follow along, read the code, or help build it.</p>
+  </Fragment>
+  <div class="os">
+    <div class="repo-card a k-rise" style="--a:0;--b:.5">
+      <p class="repo-name"><GitHubMark /><span>{repo.owner}/{repo.name}</span></p>
+      <p class="repo-desc">A simple, lightweight, open-source PDF editor built with Tauri, Rust and PDFium.</p>
+      <p class="repo-lic"><a class="chip quiet" href={license.mitUrl}>MIT</a><a class="chip quiet" href={license.apacheUrl}>Apache-2.0</a></p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={repo.url}><GitHubMark />Follow development on GitHub</a>
+        <a class="btn" href={`${repo.url}/issues`}>Contribute</a>
+      </div>
+    </div>
+    <div class="road a k-rise" style="--a:.25;--b:.75" id="roadmap">
+      <h3>Planned, subject to change</h3>
+      <ol>
+        {milestones.map((m) => <li><b>{m.version}</b><span><strong>{m.title}.</strong> {m.items}.</span></li>)}
+      </ol>
+    </div>
+  </div>
+</Scene>

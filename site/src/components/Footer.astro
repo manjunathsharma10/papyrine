@@ -1,0 +1,14 @@
+---
+import { product, repo, license } from '../config';
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <p>{product.name} is pre-release software. Licensed <a href={repo.url + '/blob/main/README.md#license'}>{license.spdx}</a>.</p>
+    <nav aria-label="Footer">
+      <a href={repo.url}>GitHub</a>
+      <a href={license.mitUrl}>MIT licence</a>
+      <a href={license.apacheUrl}>Apache-2.0 licence</a>
+      <a href="#top">Back to top</a>
+    </nav>
+  </div>
+</footer>

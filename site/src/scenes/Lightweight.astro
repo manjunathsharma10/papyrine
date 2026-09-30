@@ -1,0 +1,37 @@
+---
+import Scene from '../components/Scene.astro';
+import { targets, product } from '../config';
+---
+<Scene id="lightweight" num="06" kicker="Lightweight" title="Light on|your machine." chip="targets" flip artClass="light-art">
+  <Fragment slot="text">
+    <p>{product.name} is built with Tauri and Rust on top of PDFium, and uses your system’s web view instead of shipping a browser of its own. The aim is a small download and a window that opens as fast as you double-click.</p>
+    <p class="fineprint">Folio’s bars are the project’s targets. Real benchmarks will replace them once there is a build to measure. Reference bars are illustrative and do not measure any product.</p>
+  </Fragment>
+  <figure>
+    <div class="bars">
+      <div class="bgroup">
+        <h3>Install size</h3>
+        <div class="brow">
+          <div class="bhead"><span>A typical full-featured suite <em>illustrative</em></span><b class="a k-fade tnum" style="--a:.28;--b:.4">≈ 500 MB</b></div>
+          <div class="bt"><i class="bar ref a k-grow-x" style="--w:100%;--a:.04;--b:.42"></i></div>
+        </div>
+        <div class="brow">
+          <div class="bhead"><span>{product.name} <em>target</em></span><b class="a k-fade tnum" style="--a:.5;--b:.6">≤ {targets.installGoalMb} MB</b></div>
+          <div class="bt"><i class="bar folio a k-grow-x" style={`--w:${(targets.installGoalMb / 500) * 100}%;--a:.4;--b:.58`}></i><i class="ceil" style={`--at:${(targets.installCeilingMb / 500) * 100}%`}><span>{targets.installCeilingMb} MB hard ceiling</span></i></div>
+        </div>
+      </div>
+      <div class="bgroup">
+        <h3>Launch to first page</h3>
+        <div class="brow">
+          <div class="bhead"><span>A typical full-featured suite <em>illustrative</em></span><b class="a k-fade tnum" style="--a:.62;--b:.72">≈ 6 s</b></div>
+          <div class="bt"><i class="bar ref a k-grow-x" style="--w:100%;--a:.5;--b:.84"></i></div>
+        </div>
+        <div class="brow">
+          <div class="bhead"><span>{product.name} <em>target</em></span><b class="a k-fade tnum" style="--a:.84;--b:.94">&lt; {targets.coldLaunchSeconds.toFixed(1)} s</b></div>
+          <div class="bt"><i class="bar folio a k-grow-x" style={`--w:${(targets.coldLaunchSeconds / 6) * 100}%;--a:.8;--b:.96`}></i></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Targets from the project’s performance budgets. Not measurements.</figcaption>
+  </figure>
+</Scene>

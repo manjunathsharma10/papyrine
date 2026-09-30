@@ -1,32 +1,37 @@
-# Folio — Architecture Decision Records
+# Papyrine — Architecture Decision Records
 
 Each ADR has a status (Proposed / Accepted / Superseded), context, decision
 and consequences. Once an ADR is **Accepted**, it is never edited, only
-superseded. Proposed ADRs may be revised during review; revision 2
-(2026-09-30) applies the owner's first review.
+superseded. Proposed ADRs may be revised during review; revision 2 applied the owner's
+first review and revision 3 the second (2026-09-30).
 
 | # | Title | Status |
 |---|---|---|
-| 001 | License MIT OR Apache-2.0; permissive shipped dependencies | Proposed (rev 2) |
-| 002 | qpdf via C API + C++ shim is the only object model; lopdf rejected | Proposed (rev 2) |
+| 001 | License MIT OR Apache-2.0; permissive shipped dependencies | Proposed |
+| 002 | qpdf via C API + C++ shim is the only object model; lopdf rejected | Proposed |
 | 003 | Tauri 2 + Rust + React/TypeScript | Accepted |
-| 004 | Single multi-role executable; host + engine + **one** renderer | Proposed (rev 2) |
-| 005 | Render snapshots: sections + compaction, benchmark first | Proposed (rev 2) |
-| 006 | Form JavaScript: options compared; native AF subset now, component later | Proposed (rev 2) |
+| 004 | Single multi-role executable; host + engine + **one** renderer | Proposed |
+| 005 | Render snapshots + compaction, benchmark first; mirroring keeps qpdf as truth | Proposed (rev 3) |
+| 006 | Form JavaScript: native AF subset now (measured coverage), component later | Proposed (rev 3) |
 | 007 | Pure-Rust text shaping and fonts | Proposed |
-| 008 | LGPL/GPL software only as optional runtime integrations or test oracles | Proposed (rev 2) |
-| 009 | Tiles, √2 zoom buckets, raw RGBA transport, budget-sized caches | Proposed (rev 2) |
-| 010 | Lightweight budgets as CI gates | Proposed |
+| 008 | LGPL/GPL software only as optional runtime integrations or test oracles | Proposed |
+| 009 | Tiles, √2 zoom buckets, raw RGBA transport, budget-sized caches | Proposed |
+| 010 | Lightweight budgets as CI gates (incl. large-document memory) | **Accepted** |
 | 011 | Optional components mechanism | Proposed |
-| 012 | Change-driven journal replaces timer autosave | Proposed |
-| 013 | HEIC via OS decoders | Proposed |
+| 012 | Write-ahead journal in the host replaces timer autosave | Proposed (rev 3) |
+| 013 | HEIC via OS decoders; specific Windows HEVC message | Proposed (rev 3) |
 | 014 | Generated third-party notices | Proposed |
 | 015 | License gate: shipped vs test-only inventories + bundle inspection | Proposed |
 | 016 | Image-quality metric and per-file compression gates | Proposed |
 | 017 | Test corpora are never committed | Proposed |
 | 018 | JBIG2 lossless by default; lossy only as explicit opt-in | Proposed |
-| 019 | Product name: "Folio" conflicts; alternatives | **Needs owner decision** |
-| 020 | MVP-first milestone plan overrides the spec's phase order | Proposed |
+| 019 | Product name: Papyrine | **Accepted** |
+| 020 | MVP-first milestone plan (v0.1 → v0.1.x → … → v1.0) | **Accepted** |
+| 021 | qpdf is built with native crypto only | Proposed |
+| 022 | Opt-in security update check | Proposed |
+| 023 | Signing-key custody and rotation | Proposed |
+| 024 | Code signing and notarization of downloadable helpers | Proposed |
+| 025 | Printing via native platform APIs | Proposed (timing: owner) |
 
 ---
 
@@ -122,66 +127,121 @@ pool against the memory budget.
   priority.
 - Engine crashes are recoverable through journal replay (ADR-012).
 
-## ADR-005: Render snapshots: sections + compaction, benchmark first
+## ADR-005: Render snapshots: sections + compaction, benchmark first; mirroring fallback keeps qpdf as sole truth
 **Context:**
 - The renderer must show engine edits.
-- Appending an incremental section per edit chains over a long session.
-- Every reload has a cost, and the snapshot grows.
+- Appending an incremental section per edit chains over a long session, and
+  every reload has a cost.
 
 **Decision:**
-- Each commit appends one section containing only its changed objects (L0).
+- L0: one section per commit with only its changed objects.
 - **L1 merge** when there are more than 16 sections or re-open exceeds
   30 ms.
-- **L2 rebase** (an ID-preserving full write becomes the new base) when
-  sections exceed max(16 MB, 25% of the base).
+- **L2 rebase** (an ID-preserving full write becomes the new base) above
+  max(16 MB, 25% of the base).
 - Re-open is debounced ~50 ms.
 - Tiles are invalidated only for the affected pages.
-- **Benchmark B1 (Spike 0.2) is the first benchmark built.** It fixes the
-  thresholds, and nothing depends on snapshots until it passes.
+- **Benchmark B1 (Spike 0.2) comes first** and fixes the thresholds.
 - **Targets:** edit → updated tile < 100 ms p95; renderer RSS growth
   < 10 MB over 500 edits.
-- **Fallback:** command mirroring into PDFium's in-memory document via its
-  edit APIs.
+
+**If B1 fails: command mirroring**, with consistency rules (ARCHITECTURE
+§4.6):
+1. qpdf is the only source of truth. The PDFium document is a display-only
+   replica, and nothing is saved, exported or journalled from it.
+2. Mirroring happens only after the qpdf commit succeeds.
+3. Mirror ops are declarative, derived from the ChangeSet: the same
+   appearance-stream bytes and the same values.
+4. Only whitelisted command types are mirrored. Anything else, or any
+   rejected op, triggers an immediate re-open.
+5. Epoch-tagged tiles plus a periodic **resync** from a qpdf snapshot (at
+   idle, every 50 ops, or every 30 s) bound divergence in time.
+6. Undo is mirrored as the inverse op, or falls back to a re-open.
+7. CI requires pixel identity between replica and snapshot renders for every
+   mirrored command, plus 1,000-op randomized sequences.
+8. Form typing never runs in PDFium's form-fill environment.
 
 **Consequences:**
 - Every edit exercises the incremental writer.
-- Compaction needs the ID-preserving full writer (which is also used for
-  journal checkpoints).
+- Under mirroring, the worst case is a short-lived display difference. It
+  never affects saved data.
 
 ## ADR-006: Form JavaScript: options compared; native AF subset now, component later
 **Context:**
-- PDFium's form scripting layer (`fxjs`: the app, doc, field, event and util
-  objects plus the `AF*` built-ins) is written directly against V8's API.
-  Swapping in another JS engine means reimplementing that object model.
-- Budget: base installer ≤ 50 MB. Measured PDFium mac-arm64 (chromium/8076):
+- PDFium's form scripting layer (`fxjs`: app, doc, field, event and util
+  objects plus the `AF*` built-ins) is written against V8's API, so another
+  engine means reimplementing that object model.
+- Measured PDFium mac-arm64 (chromium/8076):
   - without V8: **6.9 MB** on disk, 3 MB compressed;
   - with V8 (+XFA): **41.6 MB** on disk, 12 MB compressed.
 
 | | (a) PDFium built with V8 | (b) QuickJS + our Acrobat JS API | (c) Defer form JS entirely |
 |---|---|---|---|
 | Size | +35 MB on disk, +9 MB download; the whole renderer library swaps | +~1 MB | 0 |
-| Effort | Low integration (weeks). But form interaction then lives inside PDFium in the renderer, so field values must be synced back to the engine model as commands, which cuts against the "engine is the source of truth" design | High: the event model, Field/Doc/App/util objects, ~60 `AF*` functions, calculation order, Acrobat quirks; est. 8–12 weeks plus a long compatibility tail | None |
-| Fidelity | Highest: PDFium's implementation is mature | Good for real-world forms (dominated by `AF*` formatting, simple calculations, show/hide and validation); lower for exotic scripts | Forms fill, but formatting, calculations and validation don't run |
-| Security | Large engine and attack surface (JIT; run `--jitless`); inside the sandboxed renderer | Small interpreter, easy CPU and memory caps, no JIT; inside a sandboxed helper | Nothing to attack |
-| Fits "optional component"? | Yes: download the V8 PDFium variant and restart the renderer with it | Yes: a separate small helper | n/a |
+| Effort | Low integration (weeks). But form interaction then lives inside PDFium, so field values must be synced back to the engine as commands, against "engine is the source of truth" | High: event model, Field/Doc/App/util objects, ~60 `AF*` functions, calculation order, quirks; est. 8–12 weeks plus a compatibility tail | None |
+| Fidelity | Highest | Good for real-world forms; lower for exotic scripts | Forms fill, but formatting, calculations and validation don't run |
+| Security | Large engine (JIT; run `--jitless`), in the sandboxed renderer | Small interpreter, easy caps, no JIT, in a sandboxed helper | Nothing to attack |
+| Optional component? | Yes: download the V8 variant, restart the renderer | Yes: a small helper | n/a |
+
+**Parser for the native subset: in-house, no third-party JS parser.**
+- A hand-written tokenizer covers JS string literals (with escapes), numbers,
+  identifiers, punctuation and comments.
+- A strict recognizer accepts only:
+  - a sequence of `AFname(arg, …);` statements;
+  - where `AFname` is on the allowlist;
+  - and each argument is a string, number, boolean, `new Array("…", …)` or
+    `["…", …]` literal.
+- Estimated at ~500–700 lines of Rust with **no dependencies**, adding
+  < 100 KB to the binary. It is licensed MIT/Apache-2.0 as our own code, and
+  fuzzed.
+- Anything outside the grammar is rejected, never partially executed.
+- A full parser (oxc_parser MIT, swc Apache-2.0, boa MIT/Unlicense) was
+  considered and rejected. The subset needs no general grammar, and a smaller
+  surface is safer and lighter.
+- **Adobe boilerplate:** the known Adobe viewer-version and XFA-check
+  document scripts are recognized by **normalized-token fingerprint** (not
+  substring match) and treated as no-ops. They only prompt users to upgrade
+  Acrobat.
+
+**Preliminary measurement (2026-09-30).**
+
+Sample: 136 public government forms downloaded for analysis and not
+committed: 112 IRS, 16 OPM, 7 New York State, 1 USCIS. SSA and VA downloads
+were blocked. All 136 are AcroForm (113 are XFA hybrids, filled via their
+AcroForm side), and 134 contain JavaScript.
+
+| Measure | Result |
+|---|---|
+| Non-empty scripts that are pure allowlisted AF calls | 1,335 / 2,334 (57%); nearly all keystroke and format triggers |
+| JS forms fully covered, strict subset only | 11 / 134 (8%). Blocked by the Adobe boilerplate document scripts in 111 IRS forms |
+| **JS forms fully covered, subset + boilerplate recognizer** | **125 / 134 (93%)** |
+| …by source | IRS 111/111 · New York 7/7 · OPM 7/15 · USCIS 0/1 |
+| **…excluding IRS** (to reduce sample bias) | **14 / 23 (61%)** |
+| Main remaining blockers | OPM: checkbox mutual-exclusion button scripts (`this.getField(…).value = …` in `if` blocks, ~630 scripts over 8 forms). USCIS I-9: custom date validation (`util.scand`, RegExp) |
+
+**Caveats:**
+- The sample is dominated by IRS forms, which share one pattern.
+- "Covered" means the recognizer accepts every script. Behavioural parity
+  with Acrobat is tested separately (≥ 200 reference cases, ROADMAP 1.13).
+- XFA-internal scripts are not counted because they are not used.
+
+Spike 0.4 repeats this on the full corpus (≥ 150 JS forms from more sources)
+and publishes the breakdown.
 
 **Decision:**
-1. **v0.1:** (c) plus a **native AF subset**, with no JS engine at all. A
-   strict recognizer executes field scripts only when they consist solely
-   of standard `AF*` calls with literal arguments (number, percent, date,
-   time and special formats and keystrokes, range validation, simple
-   calculations), implemented in Rust. Any other script shows a clear
-   banner. This covers a large share of real-world forms at zero size cost;
-   Spike 0.4 plus the corpus give the actual share.
-2. **v0.5:** an optional **`form-scripts` component**, **(b) QuickJS**,
-   reusing the Rust `AF*` implementations. It is preferred for size,
-   security and keeping the engine as the source of truth.
-3. **(a) is the fallback.** If (b) fails to match Acrobat reference behaviour
-   on ≥ 95% of the JS-forms corpus after a time-boxed effort, I'll return to
-   the owner with (a) as the component.
+1. **v0.1:** (c) + the native AF subset + the boilerplate recognizer. No JS
+   engine. Other scripts show a banner.
+2. **v0.5:** optional **`form-scripts` component** using **(b) QuickJS**,
+   reusing the Rust `AF*` implementations. The measured blockers
+   (field-value assignment, show/hide, `util.scand`/`printd`, RegExp) define
+   its first compatibility targets.
+3. **(a) is the fallback** if (b) matches Acrobat on < 95% of the JS-forms
+   corpus after a time-boxed effort. I'd come back to the owner first.
 
-**Consequences:** the base install has no JS engine. Form JS is always
-opt-in: install the component, then enable it per document or globally.
+**Consequences:**
+- The base install has no JS engine.
+- On the sample, 93% of forms work fully with no JS engine (61% outside IRS).
+- Form JS is always opt-in.
 
 ## ADR-007: Pure-Rust text shaping and fonts
 We use rustybuzz, ttf-parser, fontdb and subsetter instead of
@@ -200,7 +260,7 @@ This is enforced by ADR-015.
 
 ## ADR-009: Tiles, √2 zoom buckets, raw RGBA transport, budget-sized caches
 - 512 px tiles, rendered at the bucket scale and GPU-scaled.
-- The `folio://` scheme serves raw RGBA, decoded with `createImageBitmap`.
+- The `papyrine://` scheme serves raw RGBA, decoded with `createImageBitmap`.
 - Caches are sized to the memory budget:
   - tile L1 soft cap 48 MB, trimmed when idle;
   - previews 16 MB (QOI);
@@ -208,34 +268,35 @@ This is enforced by ADR-015.
   - disk thumbnails off by default.
 
 ## ADR-010: Lightweight budgets as CI gates
-**Decision:** the budgets in ARCHITECTURE §1.1 are hard gates:
-- installer ≤ 50 MB;
-- cold launch to first page < 1 s on the reference Mac;
-- idle memory 150 / 175 / 200 MB (macOS / Linux / Windows);
-- no pre-first-paint work outside a startup allowlist;
-- initial JS ≤ 200 KB gzipped.
+**Status:** Accepted (owner, 2026-09-30).
 
-**Proposed deviations** from the owner's numbers, with reasons (§1.2):
-- Windows and Linux idle memory is higher because of the webview process
-  floor.
-- AppImage is budgeted at 100 MB because it bundles WebKitGTK.
-- The Windows offline installer (which bundles the WebView2 runtime) is
-  exempt.
+**Decision:** these budgets are CI gates (ARCHITECTURE §1.1):
+- Installer ≤ 50 MB for dmg, msi/NSIS, deb, rpm and Flatpak; AppImage
+  ≤ 100 MB.
+- Cold launch to first page < 1 s on the reference Mac.
+- Idle memory 150 / 175 / 200 MB (macOS / Linux / Windows).
+- **Large-document memory:** peak ≤ 400 MB, settled ≤ 250 MB, and each of the
+  engine and renderer ≤ 120 MB settled, on four large generated files. This
+  catches qpdf and PDFium each holding a copy.
+- No pre-first-paint work outside a startup allowlist.
+- Initial JS ≤ 200 KB gzipped.
 
-Spike 0.1 validates these numbers before any building on them. If the bare
-shell breaks a budget, I report back rather than relax it.
+The Windows offline installer (bundling WebView2) is exempt and labelled.
+Spike 0.1 validates the shell baseline, and 0.2 the large-document baseline.
 
 **Consequences:**
-- Per-arch macOS builds, not universal.
+- Per-arch macOS builds.
+- A shared mmap with no heap file copies in the engine or renderer.
+- Capped caches.
 - Code-split UI.
 - Lazy subsystems.
-- Heavy features become components (ADR-011).
+- Heavy features become components.
 
 ## ADR-011: Optional components mechanism
 **Decision:**
 - Components are **signed data packs or sandboxed helper executables**,
   never libraries loaded into the host.
-- Format: a `.folio-component` file (zstd tar) with `component.toml` (SHA-256
+- Format: a `.papyrine-component` file (zstd tar) with `component.toml` (SHA-256
   per file, compatibility range, license, notices) and an Ed25519 signature
   over the manifest.
 - A signed static catalog is served from GitHub Releases. The embedded
@@ -254,34 +315,51 @@ shell breaks a budget, I report back rather than relax it.
   use. That is not a placeholder: the feature works once installed.
 - Release engineering must sign and notarize helper executables.
 
-## ADR-012: Change-driven journal replaces timer autosave
+## ADR-012: Write-ahead journal in the host replaces timer autosave
 **Decision:**
-- Every committed command appends a CRC-checked journal record holding the
-  **after-images** of changed objects, so replay is deterministic.
-- `fsync` is batched to ≤ 1 s, with an immediate fsync for large payloads.
-- Checkpoints (an ID-preserving merged section) every 32 MB or 500 records.
-- Recovery replays onto the verified original, rebuilds undo, and refuses
-  (offering a recovered copy) if the original changed.
-- The same journal lets an engine crash recover transparently.
+- The **host** (outside the sandboxed engine) writes the journal.
+- For every command, the host appends an **`Intent`** record before the
+  engine receives the command. The record holds params plus all external
+  inputs as content-addressed blobs.
+- After the engine applies the command, the host appends a **`Commit`**
+  record with the after-images.
+- Records are CRC32C-checked.
+- `fsync` is group-committed ≤ 1 s. Commands with large payloads wait for
+  their own fsync.
+- Checkpoints every 32 MB or 500 records.
+
+**Replay:**
+- `Commit` records apply their after-images deterministically.
+- A trailing `Intent` without `Commit` is **not** re-executed automatically.
+  The user is asked to Redo or Skip, because the command may have crashed
+  the engine. A command that crashes the engine twice is quarantined.
 
 **Consequences:**
-- A crash loses ≤ ~1 s of work.
-- The journal holds document content, so it is protected with owner-only
-  permissions and excluded from backups where possible.
+- A process crash loses nothing that was requested.
+- A power loss loses ≤ ~1 s.
+- An engine crash can never corrupt the journal.
+- The write-ahead step is a µs-scale buffered append, so there is no
+  user-visible latency.
+- The journal holds document content, so it has owner-only permissions and
+  is excluded from backups where possible.
 
 ## ADR-013: HEIC via OS decoders
 **Decision:**
 - macOS: ImageIO.
-- Windows: WIC with Microsoft's HEIF and HEVC extensions. If they are
-  missing, Folio explains which extension to install.
-- Linux: `dlopen` libheif if the system provides it. Otherwise Folio shows
-  how to install it, or suggests converting first.
-- Folio never bundles an HEVC decoder or libheif.
+- Windows: WIC with Microsoft's *HEIF Image Extensions* and *HEVC Video
+  Extensions*. Papyrine detects **which** is missing: no HEIF container
+  decoder, vs. a container decoder whose frame decode fails with
+  `WINCODEC_ERR_COMPONENTNOTFOUND`. It then shows a specific message: "Can't
+  open 'IMG_2041.heic'. Windows needs Microsoft's HEVC Video Extensions to
+  read HEIC photos… [Open Microsoft Store] [Convert another way…]". Batch
+  imports get one summary rather than a dialog per file.
+- Linux: `dlopen` libheif if the system provides it. Otherwise Papyrine shows
+  how to install it.
+- Papyrine never bundles an HEVC decoder or libheif.
 
 **Consequences:**
 - No LGPL or HEVC patent exposure in shipped artifacts.
-- HEIC availability differs by platform, and this is documented in the user
-  guide.
+- Availability differs by platform, and this is documented.
 
 ## ADR-014: Generated third-party notices
 **Decision:**
@@ -365,55 +443,147 @@ swapped in scanned numbers.
   default.
 - Readability and legal safety come first.
 
-## ADR-019: Product name: "Folio" conflicts; alternatives
-**Status:** Needs owner decision.
+## ADR-019: Product name: Papyrine
+**Status:** Accepted (owner, 2026-09-30).
 
-**Findings (2026-09-30):**
-- The Mac App Store has **"Folio PDF Reader & Editor"** (`com.folio.pdfeditor`),
-  a direct conflict. iOS also has "Folio: PDF Scanner & Editor" and "Folio:
-  Private PDF Tools".
-- Flathub has **Folio** (`com.toolstack.Folio`), a GNOME markdown notes app.
-- On crates.io, `folio` is taken (deprecated) and `folio-pdf` is taken by a
-  Rust PDF library.
-- On npm, `folio` is taken (a test framework).
+**Context:** the working name "Folio" conflicted on several registries,
+checked 2026-09-30:
+- the Mac App Store "Folio PDF Reader & Editor";
+- the iOS "Folio" PDF apps;
+- Flathub's GNOME "Folio" notes app;
+- crates.io `folio` / `folio-pdf` (a PDF library);
+- npm `folio`.
 
-Other names checked and rejected:
+Also rejected: Quire, Sheaf, Octavo, Colophon and Quarto, for PDF-app or
+publishing conflicts.
 
-| Name | Conflict |
-|---|---|
-| Quire | "Quire: PDF AI Scan, Edit, Sign" |
-| Sheaf | "Sheaf – PDF Scanner & Editor" |
-| Octavo | A PDF booklet-imposition Mac app |
-| Colophon | "PDF Colophon: Edit & Sign" |
-| Quarto | Well-known publishing system |
+**Decision:** **Papyrine**. It was clear on crates.io, npm, Flathub and the
+Apple stores when checked.
+- Crates: `papyrine-*`.
+- CLI: `papyrine`.
+- Bundle ID: `io.github.manjunathsharma10.papyrine` (to move to a custom
+  domain if the owner registers one).
+- Repo: renamed to `github.com/manjunathsharma10/papyrine`; GitHub redirects
+  the old URL.
 
-**Candidates:**
-
-| Name | crates.io | npm | Flathub | Apple stores | Notes |
-|---|---|---|---|---|---|
-| **Recto** (right-hand page) | free | taken (unrelated Bootstrap fork) | none | "Recto Notes", "Recto MD", "Recto Audiobooks": not PDF tools | Short, fits the domain; the npm name is not needed (UI is not a published package) |
-| **Papyrine** | free | free | none | none | Fully clear on every registry checked |
-| **Rectoverso** | free | free | none | none | Clear; longer |
-
-**Recommendation:** **Recto** for brevity (crates `recto-*`, bundle ID
-`io.github.<account>.recto` or a domain the owner controls), or **Papyrine**
-if a fully clear name matters more.
-
-A proper trademark search (USPTO, EUIPO, WIPO) is recommended before v1.0.
-The registry checks above are not legal clearance.
-
-The GitHub repo `folio` would be renamed; GitHub redirects the old URL.
+**Consequences:** a formal trademark search (USPTO, EUIPO, WIPO) is still
+recommended before v1.0. Registry checks are not legal clearance.
 
 ## ADR-020: MVP-first milestone plan overrides the spec's phase order
+**Status:** Accepted (owner approved the direction, 2026-09-30).
+
 **Decision:**
-- Step 0 spikes, then **v0.1 MVP**: open, view, search, annotate, fill
-  forms, organise pages, save safely. Basic print is proposed as an
-  addition.
+- Step 0 spikes come first.
+- Then **v0.1 MVP**: view (single + continuous), search (current document),
+  annotate, fill forms, organise pages, and save safely, plus the opt-in
+  security update check.
+- Then **v0.1.x**: CLI, multi-document search, facing mode, stamps,
+  split-every-N, and printing if the owner chooses.
 - Then v0.2 Compress, v0.3 Sign & Protect, v0.4 Edit, v0.5 Forms/Comments
   Pro + components, v0.6 Scan/OCR/Create/Export, v0.7 Standards &
   Accessibility, v0.8 Compare/Automation/Power, v1.0 Release.
-- Items cut from old Phase 1 are listed with their new homes in ROADMAP.
 - Milestone reports replace phase reports.
 
 **Consequences:** the first usable release comes much sooner, and the
-flagship compression follows immediately in v0.2.
+flagship compression follows directly.
+
+## ADR-021: qpdf is built with native crypto only
+**Decision:**
+- Vendored qpdf is built with `DEFAULT_CRYPTO=native` and
+  `REQUIRE_CRYPTO_NATIVE=ON`, with OpenSSL and GnuTLS disabled.
+- GnuTLS (LGPL) is banned outright. OpenSSL (Apache-2.0) would be
+  license-compatible, but it is not used, to avoid ~5 MB and a
+  per-platform build.
+- qpdf only uses crypto for PDF encryption of local files. New cryptography
+  (encrypting incremental sections; signatures in v0.3) uses RustCrypto.
+- **The gate:**
+  - a CMake-cache check;
+  - a runtime test that `QPDFCryptoProvider::getRegisteredImpls()` returns
+    exactly `["native"]`;
+  - bundle inspection for `libgnutls*`, `libssl*` and `libcrypto*`, plus a
+    symbol scan for static linking.
+
+**Consequences:** there are two crypto implementations: qpdf's native one
+for its own reading and writing, and RustCrypto for ours. Both are covered by
+the encryption interop tests.
+
+## ADR-022: Opt-in security update check
+**Decision:**
+- Off by default. First run asks once, with no pre-selected answer.
+- When enabled, it makes one daily HTTPS GET of a static, Ed25519-signed
+  `updates.json` from GitHub Releases. It sends no identifiers, version,
+  query string or cookies, and compares versions locally.
+- A security release affecting the installed version shows a non-modal
+  banner. Download is user-initiated and verified. There is **no silent
+  install**; auto-update waits for v1.0 and is opt-in too.
+- Policy can disable the check or point it at a mirror. The CLI has
+  `papyrine update check`.
+
+**Consequences:** security fixes reach users who opted in, without
+telemetry. Users who didn't opt in rely on release announcements.
+
+## ADR-023: Signing-key custody and rotation (updates and component packs)
+**Decision:**
+- **Two offline root keys** (Ed25519, on hardware security keys stored in
+  separate locations, with encrypted paper seed backups). They sign only
+  `keyring.json`, and either root alone suffices.
+- **Online keys** (release, component and, from v1.0, Tauri updater) live in
+  a protected GitHub Actions environment: required reviewer = owner,
+  main-branch only, no fork PRs. Each is listed in the root-signed keyring
+  with `not_before`/`not_after`.
+- **Rotation:** online keys yearly or on suspicion. A root is replaced by an
+  app release signed by the other root.
+- **Revocation:** a root-signed keyring update. Every app release also
+  bundles the latest keyring.
+- Dev builds use a separate dev root that release builds reject.
+- The ceremony, custody and incident steps are documented in `docs/KEYS.md`.
+- Keys are created before the first public release.
+
+**Consequences:**
+- Compromise of the CI secrets can be recovered from without shipping a new
+  app, by revoking through the keyring.
+- Losing both roots would require a manual reinstall. That is mitigated by
+  two separate locations plus paper backups.
+
+## ADR-024: Code signing and notarization of downloadable helpers
+**Decision:**
+- **macOS:** each helper is a minimal app bundle, so it can be stapled. It is
+  signed with the app's Developer ID, uses hardened runtime with minimal
+  entitlements, and is notarized and **stapled**. On install, the host checks
+  `SecStaticCodeCheckValidity` with a Team-ID requirement, in addition to our
+  Ed25519 signature.
+- **Windows:** Authenticode with an RFC 3161 timestamp. On install,
+  `WinVerifyTrust` must pass and the signer must match the app's.
+- **Linux:** Ed25519 only; Flatpak extensions where possible.
+- The release CI signs, notarizes and staples helpers in the same job as the
+  app.
+- Until certificates exist, helpers are marked unsigned. Release builds
+  refuse them unless a developer setting is enabled, with a warning.
+
+**Consequences:**
+- It needs an Apple Developer ID and a Windows signing certificate (EV or
+  Azure Trusted Signing) before components ship publicly (v0.5).
+- Stapling allows offline first launch.
+
+## ADR-025: Printing via native platform APIs
+**Status:** Proposed; **timing is the owner's decision** (ROADMAP 1.17).
+
+**Decision:** printing never uses the webview.
+- The engine produces a normalized "print PDF", with the page subset, print
+  flags and appearances resolved.
+- **macOS:** PDFKit `printOperation` (vector); PDFium raster as "print as
+  image".
+- **Windows:** Win32 `PrintDlgEx`. The **sandboxed renderer** produces EMF
+  via PDFium, and the host plays it into the printer DC, so no PDF parsing
+  happens in the host. Banded raster fallback.
+- **Linux:** the GTK print dialog; the PDF goes to CUPS via `GtkPrintJob`,
+  with the portal inside Flatpak.
+- CI virtual printers on all three.
+
+**Estimate:** 21–26 working days in total: macOS 3–4, Windows 8–10,
+Linux 4–5, shared 4–5, test infrastructure 2.
+
+**Consequences:**
+- Windows is the costliest platform, because it has no OS PDF printing.
+- The quality of print output on macOS and Linux depends partly on Apple's
+  and CUPS's PDF handling. The "print as image" option is the escape hatch.

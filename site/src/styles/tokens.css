@@ -1,0 +1,32 @@
+/* Every colour token is a light-dark() pair, so the theme toggle only has to flip `color-scheme`.
+   scripts/check-contrast.mjs parses this file and enforces WCAG AA on the pairs that matter. */
+:root {
+  color-scheme: light dark;
+
+  --bg: light-dark(#f6f1e7, #12100d);
+  --surface: light-dark(#fffcf5, #1b1814);
+  --ink: light-dark(#1b1915, #f3eee3);
+  --muted: light-dark(#5a564d, #aaa496);
+  --rule: light-dark(#d8d0bf, #34302a);
+
+  --accent: light-dark(#d93a19, #ff6b4a);        /* fills, large display type */
+  --accent-text: light-dark(#b32d10, #ff8264);   /* links and small text on --bg */
+  --on-accent: light-dark(#ffffff, #1a0b06);     /* text on --accent fills */
+
+  /* Paper: pages stay light in the dark theme, they are the light source of every scene. */
+  --paper: light-dark(#fbf8f1, #f1ebde);
+  --paper-ink: #3a362f;
+  --paper-line: light-dark(#cfc8b8, #c4bcaa);
+  --paper-shadow: light-dark(rgb(40 30 10 / .28), rgb(0 0 0 / .6));
+  --field: #e9eef7;
+  --hl: #ffd84d;
+  --tab-a: #d93a19;
+  --tab-b: #2f5d8a;
+
+  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-body: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --header-h: 3.5rem;
+  --measure: 34rem;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }

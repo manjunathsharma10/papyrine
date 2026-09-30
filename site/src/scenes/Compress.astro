@@ -1,0 +1,55 @@
+---
+import Scene from '../components/Scene.astro';
+import { compressExample as ex } from '../config';
+const saved = Math.round((1 - ex.balancedMb / ex.originalMb) * 100);
+const frac = (ex.balancedMb / ex.originalMb).toFixed(3);
+// Counter values, each stacked on the last and switched on by scroll (opacity only).
+const steps = [ex.originalMb, 20, 16, 12, 8.5, 6, 4.2, ex.balancedMb];
+const fmt = (n: number) => `${n} MB`;
+---
+<Scene id="compress" mode="pin" num="05" kicker="Compress" title="Smaller files.|Same pages." pin="210svh" artClass="pin-art cmp-art">
+  <Fragment slot="text">
+    <p>See what is taking up space, pick a preset, and compare before and after side by side. Folio will never save a file that ends up larger than the one you started with.</p>
+    <p class="fineprint">Example numbers, for illustration only. Real results depend on the file. “Balanced” is one of several planned presets.</p>
+  </Fragment>
+  <figure>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="cmp-art" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice">
+        <rect width="400" height="250" fill="var(--paper)"/>
+        <rect width="236" height="250" fill="#d9e6ee"/>
+        <circle cx="168" cy="72" r="26" fill="#f2b45a"/>
+        <path d="M0 176 70 112l48 44 44-56 74 76v74H0z" fill="#7a8f7b"/>
+        <path d="M0 208 62 158l58 40 60-38 56 44v46H0z" fill="#4d6650"/>
+        <g stroke="#2f4636" stroke-width=".7" opacity=".55">
+          {Array.from({ length: 22 }, (_, i) => <path d={`M${10 + i * 10} 250v-${18 + ((i * 7) % 20)}`} />)}
+        </g>
+        <path d="M40 60q6-6 12 0M56 52q6-6 12 0M72 62q6-6 12 0" fill="none" stroke="#33414a" stroke-width="1.5"/>
+        <rect x="256" y="28" width="118" height="12" rx="3" fill="var(--paper-ink)" opacity=".78"/>
+        {Array.from({ length: 11 }, (_, i) => <rect x="256" y={58 + i * 15} width={[128, 122, 128, 96, 126, 118, 128, 76, 124, 128, 84][i]} height="5" rx="2.5" fill="var(--paper-line)"/>)}
+      </symbol>
+    </svg>
+    <div class="cmp">
+      <div class="cmp-head">
+        <div class="stack cmp-label"><span>Original</span><span class="a k-fade" style="--a:.5;--b:.58">After the Balanced preset</span></div>
+        <div class="stack cmp-num tnum" aria-hidden="true">
+          {steps.map((v, i) => i === 0 ? <span>{fmt(v)}</span> : <span class="a k-fade" style={`--a:${(0.06 + i * 0.075).toFixed(3)};--b:${(0.072 + i * 0.075).toFixed(3)}`}>{fmt(v)}</span>)}
+        </div>
+        <p class="sr-only">Example: from {fmt(ex.originalMb)} down to {fmt(ex.balancedMb)}.</p>
+      </div>
+      <div class="track" aria-hidden="true">
+        <div class="track-labels"><span>Original</span><span>Balanced</span></div>
+        <div class="rail"><i class="thumb a k-move" style="--a:.06;--b:.6"></i></div>
+      </div>
+      <div class="split" role="img" aria-label={`Before and after view of the same page. The original is ${fmt(ex.originalMb)}, the Balanced result is ${fmt(ex.balancedMb)}, and the two look alike.`}>
+        <div class="layer"><svg viewBox="0 0 400 250" focusable="false"><use href="#cmp-art"/></svg><span class="tag tag-l">Original · {fmt(ex.originalMb)}</span></div>
+        <div class="reveal a lin k-split-w" style="--a:.06;--b:.98">
+          <div class="layer bal a lin k-split-i" style="--a:.06;--b:.98"><svg viewBox="0 0 400 250" focusable="false"><use href="#cmp-art"/></svg><span class="tag tag-r">Balanced · {fmt(ex.balancedMb)}</span></div>
+        </div>
+        <div class="handle-wrap a lin k-split-w" style="--a:.06;--b:.98"><span class="handle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 7-5 5 5 5M15 7l5 5-5 5"/></svg></span></div>
+      </div>
+      <div class="sizebar" aria-hidden="true"><i class="fill a k-fill" style={`--a:.06;--b:.6;--frac:${frac}`}></i></div>
+      <p class="save a k-fade" style="--a:.6;--b:.72">About {saved}% smaller in this example</p>
+    </div>
+    <figcaption>Concept illustration with example numbers.</figcaption>
+  </figure>
+</Scene>

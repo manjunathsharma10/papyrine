@@ -1,0 +1,47 @@
+---
+import Scene from '../components/Scene.astro';
+import { product } from '../config';
+const nets = [
+  { c: [90, 40], from: [90, 60], to: [150, 130] },
+  { c: [200, 30], from: [200, 52], to: [200, 130] },
+  { c: [310, 40], from: [310, 60], to: [250, 130] },
+];
+const mid = (n: { from: number[]; to: number[] }) => [(n.from[0] + n.to[0]) / 2, (n.from[1] + n.to[1]) / 2];
+---
+<Scene id="offline" num="07" kicker="Private and offline" title="Your files|stay yours." chip="" artClass="offline-art">
+  <Fragment slot="text">
+    <p>{product.name} works fully offline. Your documents are opened, edited and saved on your own device, and nothing is uploaded anywhere. Unplug the network and carry on.</p>
+  </Fragment>
+  <figure>
+    <svg viewBox="0 0 400 300" role="img" aria-label="A laptop showing a document, with lines connecting it to three clouds. The lines break apart and an Offline badge appears, and the document keeps being edited: a highlight and a pen mark appear, then a note reads Saved on this device." focusable="false">
+      {nets.map((n) => (
+        <g transform={`translate(${n.c[0]} ${n.c[1]})`}>
+          <path class="cloud" d="M-26 12h48a13 13 0 0 0 1-26 18 18 0 0 0-34-5 14 14 0 0 0-15 31z"/>
+        </g>
+      ))}
+      {nets.map((n) => { const m = mid(n); return (
+        <g>
+          <line class="net up a k-net-up" x1={n.from[0]} y1={n.from[1]} x2={m[0]} y2={m[1]} style="--a:.08;--b:.34"/>
+          <line class="net lo a k-net-lo" x1={m[0]} y1={m[1]} x2={n.to[0]} y2={n.to[1]} style="--a:.08;--b:.34"/>
+          <g class="fb o-c a k-pop xmark" transform={`translate(${m[0]} ${m[1]})`} style="--a:.3;--b:.4"><path d="M-6-6 6 6M6-6-6 6"/></g>
+        </g>
+      ); })}
+      <rect class="lid" x="110" y="132" width="180" height="112" rx="9"/>
+      <rect class="screen" x="120" y="142" width="160" height="92" rx="3"/>
+      <path class="lap-base" d="M96 244h208l-12 16H108z"/>
+      <rect x="160" y="148" width="80" height="80" rx="2" fill="var(--paper)"/>
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => <rect class="pl" x="167" y={156 + i * 9} width={[64, 60, 64, 44, 62, 58, 36][i]} height="3.6" rx="1.8"/>)}
+      <rect class="hl fb o-l a k-grow-x" x="165" y="163" width="52" height="8" rx="2" style="--a:.45;--b:.62"/>
+      <path class="pen draw a k-draw lin" pathLength="1" style="--a:.6;--b:.84;stroke-width:2.2" d="M168 213q10-9 20 0t20 0 20 0"/>
+      <g class="a k-fade" style="--a:.3;--b:.4">
+        <rect class="badge" x="298" y="146" width="80" height="28" rx="14"/>
+        <text class="badge-t" x="338" y="164" text-anchor="middle">Offline</text>
+      </g>
+      <g class="a k-fade" style="--a:.86;--b:.96">
+        <rect class="pill" x="132" y="272" width="136" height="24" rx="12"/>
+        <text class="pill-t" x="200" y="288" text-anchor="middle">Saved on this device</text>
+      </g>
+    </svg>
+    <figcaption>Concept illustration: with no connection, {product.name} keeps working.</figcaption>
+  </figure>
+</Scene>

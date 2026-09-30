@@ -1,14 +1,21 @@
-# Folio — Roadmap
+# Papyrine — Roadmap
 
-Status: **Draft v2 for approval** · Last updated: 2026-09-30
+Status: **Draft v3** (direction approved; revision 3 applies the second
+review) · Last updated: 2026-09-30
 
-**Revision 2 changes:**
-- Restructured around an **MVP (v0.1)** as the first real milestone
-  (ADR-020). The spec's nine phases are replaced by milestones v0.1 → v1.0.
-- A **Step 0 of de-risking spikes** comes first, including benchmark B1
-  (render snapshots).
-- Old Phase 1 items not needed for the MVP are deferred and listed
-  explicitly.
+**Revision 3:**
+- v0.1 shrunk to the owner's list. The CLI, multi-document search, facing
+  mode, stamps and split-every-N move to **v0.1.x**.
+- Added:
+  - the large-document memory gate;
+  - the opt-in security update check (v0.1);
+  - the write-ahead journal;
+  - per-platform print estimates (the decision is pending);
+  - the measured form-script coverage.
+- Name decided: Papyrine.
+
+**Revision 2:** MVP-first restructure (ADR-020), Step 0 spikes, and the
+deferral table.
 
 **Every milestone ends with:**
 - an installable build (macOS verified on the reference machine; Windows and
@@ -20,16 +27,16 @@ Status: **Draft v2 for approval** · Last updated: 2026-09-30
 **Legend:**
 - **AC** = acceptance criteria.
 - **Interop check** = passes `qpdf --check`, renders without errors in
-  PDFium, PDF.js and Poppler (test-only), and re-opens in Folio.
+  PDFium, PDF.js and Poppler (test-only), and re-opens in Papyrine.
 - **Round trip** = open → command → save → reopen → verify, plus undo
   restores objects byte-identically, plus the shadow verifier finds no
   unrecorded change.
 
 | Spec phase | Now lives in |
 |---|---|
-| 1 Foundation | Step 0 + v0.1 (trimmed; deferrals below) |
-| 2 Organize + Compress | v0.1 (core organize) + v0.2 (compress, advanced organize) |
-| 3 Comment + Fill | v0.1 (core annotate, fill) + v0.5 (the rest) |
+| 1 Foundation | Step 0 + v0.1 (trimmed) + v0.1.x |
+| 2 Organize + Compress | v0.1 (core organize) + v0.1.x + v0.2 (compress, advanced organize) |
+| 3 Comment + Fill | v0.1 (core annotate, fill) + v0.1.x (stamps) + v0.5 (the rest) |
 | 4 Edit | v0.4 |
 | 5 Forms + Protect | v0.3 (protect) + v0.5 (form authoring, form scripts) |
 | 6 Scan/OCR/Create/Export | v0.6 |
@@ -39,269 +46,291 @@ Status: **Draft v2 for approval** · Last updated: 2026-09-30
 
 ---
 
-## Step 0 — Decisions and de-risking spikes
+## Step 0 — De-risking spikes
 
 These are throwaway-quality code in `spikes/`, not shipped. Findings go into
-ADRs.
+ADRs, and each spike ends with a short report in `docs/spikes/`.
 
 | Task | What | Exit criteria |
 |---|---|---|
-| 0.0 | **Product name** decided (ADR-019) | Name chosen by the owner. Crates, bundle ID and GitHub repo named accordingly. **No crates or bundle ID are created before this** |
-| 0.1 | Bare Tauri 2 window + static tile on macOS, Windows and Linux | Measured installer size, cold/warm launch, and idle memory of the bare shell per OS. If the bare shell alone breaks a budget in ARCHITECTURE §1.1, **stop and report to the owner** |
-| 0.2 | qpdf C++ shim (via `cxx`) + incremental section writer prototype + PDFium custom reader. **Benchmark B1** (ARCHITECTURE §4.6) | B1 report: re-open time and RSS vs number of sections `k` and section size, on the 2,000-page, 1,000-page image-heavy and typical-20p files. Decide the compaction thresholds, or switch to command mirroring. **Nothing else builds on snapshots until this is done** |
-| 0.3 | qpdf vs lopdf on the corpus | Open and repair success rates, peak RSS on the 2,000-page file, time to first object. Confirms or reopens ADR-002 |
-| 0.4 | PDFium form-widget + native AF-subset feasibility | Fill a text field with `AFNumber_Format` in PDFium's form-fill environment without JS, with our formatter producing the appearance. Confirms the v0.1 forms plan (ADR-006) |
+| 0.0 | Product name | **Done:** Papyrine (ADR-019). Repo renamed |
+| 0.1 | Bare Tauri 2 window + static tile on macOS, Windows and Linux | Measured installer size (dmg, msi, deb, rpm, AppImage, Flatpak), cold/warm launch, and idle memory of the bare shell per OS. If the bare shell alone breaks a budget, **stop and report to the owner** |
+| 0.2 | qpdf C++ shim (via `cxx`, native crypto) + incremental section writer prototype + PDFium custom reader over a shared mmap. **Benchmark B1** (ARCHITECTURE §4.6) and a **first large-document memory run** (§1.2) | B1 report: re-open time and RSS vs number of sections `k` and section size, on the large and typical files. Compaction thresholds fixed, or the command-mirroring fallback adopted (with its consistency tests, §4.6). qpdf and PDFium per-process memory on the four large files. **Nothing else builds on snapshots until this is done** |
+| 0.3 | qpdf vs lopdf on the corpus | Open and repair success, peak RSS, time to first object. Confirms or reopens ADR-002 |
+| 0.4 | Form scripts: the full-corpus measurement + an AF behaviour reference | Rust recognizer prototype run over the whole corpus's JS forms (not just the 134-form sample in ADR-006), with results broken down by source. Reference outputs for ≥ 200 AF formatting cases captured from Acrobat Reader (the owner runs a provided form, or public reference tables are used). Confirms the v0.1 forms plan |
 
 ---
 
-## v0.1 — MVP: open, view, search, annotate, fill forms, organise pages, save safely
+## v0.1 — MVP
 
-**Definition:** a person can use Folio as their everyday PDF app for reading,
-marking up, filling forms and rearranging pages, and **never lose work or
-corrupt a file**. Only v0.1 features appear in the UI.
+**Scope (owner-defined):**
+- view (single page + continuous);
+- search (current document);
+- annotate;
+- fill forms;
+- organise pages;
+- save safely.
+
+**Definition:** a person can use Papyrine every day to read, mark up, fill
+forms and rearrange pages, and **never lose work or corrupt a file**. Only
+v0.1 features appear in the UI; everything else is post-MVP.
 
 ### 1.1 Repository, tooling, CI
-- Cargo and pnpm workspaces; strict lint and format; LICENSE-MIT,
-  LICENSE-APACHE, README, SECURITY.md, CONTRIBUTING.md.
+- Cargo and pnpm workspaces (`papyrine-*` crates); strict lint and format;
+  LICENSE-MIT, LICENSE-APACHE, README, SECURITY.md, CONTRIBUTING.md.
 - CI matrix: macOS arm64/x64, Windows x64/arm64, Ubuntu x64.
 - **Gates live from day one:**
-  - license (shipped Rust / shipped JS / native manifest, separate from test
-    oracles);
+  - license (shipped Rust / shipped JS / native manifest / qpdf crypto
+    config, separate from test oracles);
   - notices freshness;
   - bundle inspection;
-  - no-corpus-in-repo;
-  - budgets (size, launch, idle memory, startup-trace allowlist, JS bundle).
+  - no corpus in the repo;
+  - budgets (size, launch, idle memory, **large-document memory**,
+    startup-trace allowlist, JS bundle).
 - **AC:**
   - A clean clone builds and tests with the documented prerequisites.
   - Deliberate violations fail CI on a scratch branch:
     - a GPL crate;
-    - a banned native library in the bundle;
+    - a banned native library;
+    - qpdf built with GnuTLS or OpenSSL;
     - a committed PDF;
-    - a stale notices file;
-    - a 60 MB installer;
+    - stale notices;
+    - an oversized installer;
     - a subsystem initialized before first paint.
 
 ### 1.2 Test corpus (download and generate at test time only)
-- `corpus/manifest.toml` + `corpus/fetch` (verified by SHA-256) + a
-  `tools/gen-corpus` synthetic generator. The cache is gitignored.
-- **AC:** ≥ 500 files including ≥ 50 malformed. The license of each file is
-  recorded. The CI cache works on all OSes.
+- `corpus/manifest.toml` + `corpus/fetch` (SHA-256 verified) +
+  `tools/gen-corpus`, which also generates the large-document files.
+- **AC:** ≥ 500 files including ≥ 50 malformed and ≥ 150 JS forms. The
+  license of each file is recorded. The cache works on all OSes.
 
-### 1.3 `qpdf-sys` (C API + C++ shim) and `folio-cos`
-- Vendored qpdf ≥ 12 (native crypto).
-- The shim functions listed in ARCHITECTURE §4.1.
-- The safe Rust API and the RepairLog.
+### 1.3 `qpdf-sys` (C API + C++ shim) and `papyrine-cos`
+- Vendored qpdf ≥ 12 with **native crypto only**; the shim functions in
+  ARCHITECTURE §4.1; the safe API; the RepairLog; a custom `InputSource`
+  over the shared mmap.
 - **AC:**
-  - Every corpus file either opens or fails with a typed error, with no
-    panic, crash or hang (30 s).
-  - Every synthetic malformed file opens and logs repairs.
+  - Every corpus file opens or fails with a typed error, with no panic,
+    crash or hang (30 s).
+  - Synthetic malformed files open with logged repairs.
   - Every encryption revision opens with the right password and is refused
     with the wrong one.
-  - Fuzz target: 10 min per PR, nightly 1 h.
+  - `getRegisteredImpls() == ["native"]`.
+  - Fuzzing: 10 min per PR, 1 h nightly.
 
-### 1.4 `folio-content` (lexer, parser, serializer)
-- **AC:**
-  - Parse → serialize → parse is identical across every corpus content
-    stream.
-  - The fuzz target is clean.
+### 1.4 `papyrine-content` (lexer, parser, serializer)
+- **AC:** parse → serialize → parse is identical on every corpus content
+  stream, and fuzzing is clean.
 
-### 1.5 `folio-model` (MVP read side)
-- Page tree, boxes, rotation, page labels (display), outlines, AcroForm
-  fields, annotations, Info, the encryption and permissions summary,
-  signature presence (for the save policy), the linearized flag and the
-  version.
+### 1.5 `papyrine-model` (MVP read side)
+- Page tree, boxes, rotation, outlines, AcroForm fields, annotations, Info,
+  the encryption and permissions summary, signature presence (for the save
+  policy), and the version.
 - **AC:** values match expectations for 30 curated files. No panics on the
   corpus.
 
-### 1.6 `folio-ops` + change-driven journal
-- `Command`, `EditContext`, `ChangeSet`, `History`, `CompositeCommand`, the
-  shadow verifier, and journal records with group-commit fsync ≤ 1 s,
-  checkpoints and replay (ARCHITECTURE §7).
+### 1.6 `papyrine-ops` + write-ahead journal (host)
+- `Command`, `EditContext`, `ChangeSet`, `History`, `CompositeCommand`, and
+  the shadow verifier.
+- The journal is written by the **host**: an `Intent` before the engine
+  applies, then a `Commit` with after-images; external inputs go into blobs;
+  group fsync ≤ 1 s; checkpoints (ARCHITECTURE §7).
 - **AC:**
-  - A property test of random command sequences and undo/redo restores the
+  - A property test of random command and undo/redo sequences restores the
     exact state.
-  - Kill -9 the whole app at random points during an editing script (1,000
-    iterations, in CI): recovery restores every command whose record was
-    fsynced, and the loss window is ≤ 1 s of commands.
+  - A test asserts that the engine receives no command whose `Intent` hasn't
+    been written.
+  - **Kill -9 of the host, engine or renderer** at random points (1,000
+    iterations, in CI): every command whose `Intent` was written is either
+    recovered (with `Commit`) or reported as unfinished (without `Commit`).
+    Nothing is silently lost.
+  - A simulated power loss (dropping un-fsynced data with a fault-injecting
+    filesystem layer) loses ≤ 1 s of commands.
+  - A poison command that crashes the engine is quarantined after two tries.
 
-### 1.7 `folio-writer`
-- Incremental sections (table or stream to match the original; encrypted
-  docs; hybrid files).
-- ID-preserving full write.
-- qpdf optimized rewrite with history rebasing.
-- Atomic replace with validation.
-- The save policy (ARCHITECTURE §4.5).
+### 1.7 `papyrine-writer`
+- Incremental sections, the ID-preserving full write, the qpdf optimized
+  rewrite with history rebasing, atomic replace with validation, and the save
+  policy (ARCHITECTURE §4.5).
 - **AC:**
-  - Incremental save of signed corpus files leaves the original bytes as an
-    exact prefix, and pyHanko (test-only) reports the signatures intact.
+  - Incremental save of signed files leaves the original bytes as an exact
+    prefix, and pyHanko (test-only) reports the signatures intact.
   - Interop check for all three outputs on 100 corpus files.
   - Fault injection at every atomic-replace step never corrupts or loses
     the target.
 
 ### 1.8 Renderer, tiles, snapshots
-- One render worker, the tile pipeline, the `folio://` transport, and caches
+- One render worker, the tile pipeline, `papyrine://` transport, and caches
   sized to budget.
-- Snapshots with compaction using the thresholds from B1.
+- Snapshots with compaction per B1, or command mirroring with its
+  consistency suite.
 - Crash restart.
 - **AC:**
   - Golden-image match on 50 pages.
-  - First page < 500 ms for the 20-page file and < 2 s for the 2,000-page
-    file on the reference Mac.
+  - First page < 500 ms (20 pages) and < 2 s (2,000 pages) on the reference
+    Mac.
   - Edit → updated tile < 100 ms p95.
-  - Renderer RSS growth < 10 MB over a 500-edit session.
-  - Killing the renderer causes only a brief re-render.
+  - Renderer RSS growth < 10 MB over 500 edits.
+  - The **large-document memory gate** passes on all four large files.
 
 ### 1.9 Process split and sandbox
-- Single multi-role executable. Engine and renderer sandboxed on macOS
-  (Seatbelt), Linux (landlock + seccomp) and Windows (restricted token + Job
-  object).
-- **AC:** inside each sandbox these attempts are all denied: reading `~`,
+- Single multi-role executable. Engine and renderer sandboxed on macOS,
+  Linux and Windows.
+- **AC:** inside each sandbox these attempts are denied: reading `~`,
   writing outside temp, opening a socket, spawning a process. Normal
   operation is unaffected.
 
 ### 1.10 Viewer UI (MVP scope)
 - App shell: design tokens; light, dark and high-contrast themes; an
-  original icon subset; toolbar with **core tools only**; **All Tools**
-  panel; command palette; left pane; right tool pane; status bar; i18n
-  scaffolding (English, plus a pseudo-locale and an RTL layout test).
-- Documents open in tabs in one window, via the open dialog, drag and drop,
-  recent files (thumbnails, pinned) and OS file associations.
-- View modes: single page, continuous, two-page facing (with or without
-  cover), and simple full screen.
+  original icon subset; a toolbar with **core tools only**; the All Tools
+  panel; the command palette; left pane; right tool pane; status bar; i18n
+  scaffolding (English, a pseudo-locale, an RTL layout test).
+- Tabs in one window. Open via the dialog, drag and drop, recent files, and
+  OS file associations.
+- **View modes: single page and continuous.**
 - Zoom: fit page, fit width, actual size, presets, 10%–6400%, Ctrl/⌘-wheel
-  and trackpad pinch.
+  and pinch.
 - Panes: thumbnails and bookmarks (navigate).
-- Navigation: go to page, back/forward history, full keyboard navigation.
-- Document Properties: view everything in the v0.1 model; edit title,
-  author, subject and keywords.
+- Navigation: go to page, back/forward, full keyboard navigation.
+- Document Properties: view; edit title, author, subject and keywords.
 - Banners: repaired file, file changed on disk; prompts for URI and launch
   actions.
 - **AC:**
-  - E2E: open, view modes, zoom, tabs, properties edit + save + reopen, and
-    keyboard-only use of every v0.1 control.
+  - E2E coverage of the above, keyboard-only.
   - B4 scroll p95 ≤ 16.7 ms.
   - axe-core reports no serious or critical issues.
-  - VoiceOver can read the page text layer.
+  - VoiceOver reads the text layer.
   - All strings are in the catalog.
 
-### 1.11 Search (MVP scope)
+### 1.11 Search (current document)
 - Find bar (⌘/Ctrl-F): whole word, case-sensitive, diacritic-insensitive,
-  include comments. Searches the current document or all open documents,
-  with a results list and snippets, streaming and cancellable. Covers
-  annotation contents and form field values. Handles ligatures, hyphenation,
-  RTL and CJK.
+  include comments and form values. A results list with snippets, streaming
+  and cancellable. Handles ligatures, hyphenation, RTL and CJK.
 - **AC:**
   - B3: 1,000 pages < 3 s, first hit < 300 ms.
   - Golden queries pass for Arabic, Hebrew, Japanese, Chinese, ligatures and
     hyphenation.
 
-### 1.12 Annotate (MVP scope)
-- Create, edit, move and delete: highlight, underline, strikeout, squiggly,
-  sticky note, text box (free text), pen (ink) + eraser, rectangle, oval,
-  line, arrow, and static stamps (Approved, Draft, Confidential, Final, Not
-  Approved).
-- Properties: colour, opacity, stroke width, fill, author, subject, dates.
-- Threaded replies.
-- Comments pane: list, jump to, filter by type/author/page, delete. Show or
-  hide all.
-- Appearance streams are generated per spec. Text in non-Latin scripts uses
-  system fonts via fontdb, subset-embedded only when the font's `fsType`
-  permits embedding; otherwise the user picks another font.
-- All other existing annotation types are displayed and preserved.
+### 1.12 Annotate (MVP scope, no stamps)
+- Highlight, underline, strikeout, squiggly, sticky note, text box, pen +
+  eraser, rectangle, oval, line, arrow.
+- Properties: colour, opacity, width, fill, author, subject, dates.
+- Replies. The comments pane (list, jump, filter by type/author/page,
+  delete). Show or hide all.
+- Appearance streams per spec. Non-Latin text uses system fonts via fontdb,
+  embedded only if `fsType` allows it.
+- All other annotation types are displayed and preserved.
 - **AC:**
   - Round trip for each type.
   - They render in PDF.js, Poppler and PDFium.
-  - Acrobat-created samples in the corpus keep their appearance and
-    properties after Folio edits other annotations.
+  - Acrobat-created annotations are preserved.
 
-### 1.13 Fill forms (MVP scope)
-- AcroForm filling: text (single, multi-line, comb), checkbox, radio, combo,
-  list box.
-- Tab order; appearance generation; NeedAppearances handling; reset form.
-- **Native AF subset, no JS engine** (ADR-006). A strict recognizer runs a
-  field script only when the script consists *solely* of standard calls with
-  literal arguments:
-  - `AFNumber_Format/Keystroke`, `AFPercent_*`, `AFDate_*`, `AFTime_*`,
-    `AFSpecial_*`, `AFRange_Validate`;
-  - `AFSimple_Calculate` (SUM, PRD, AVG, MIN, MAX) with calculation order.
-- Forms with any other script show a banner: "This form uses scripts that
-  Folio doesn't run yet; calculations may not update."
-- XFA: static XFA with an AcroForm fallback is shown and fillable. Dynamic
-  XFA shows a read-only notice.
-- **Fill on flat forms:** click to type text, and add ✓ ✗ • marks.
+### 1.13 Fill forms
+- AcroForm filling: text (single, multi-line, comb), checkbox, radio,
+  combo, list box. Tab order, appearance generation, NeedAppearances, reset.
+- **Native AF subset (ADR-006):** an in-house tokenizer and strict
+  recognizer (no third-party JS parser) plus Rust implementations of the
+  allowlisted `AF*` functions.
+- **Adobe boilerplate recognizer:** Adobe's known viewer-version and XFA
+  check document scripts are matched by normalized-token fingerprint and
+  treated as no-ops.
+- Forms with other scripts show a banner.
+- XFA: static XFA with an AcroForm fallback is fillable; dynamic XFA is
+  read-only with a notice.
+- Flat forms: click to type, plus ✓ ✗ • marks.
 - **AC:**
   - Fill + save round trip on 30 corpus forms.
   - Values display in PDF.js, Poppler and PDFium.
-  - The AF formatting outputs match Acrobat reference strings for a table
-    of ≥ 200 cases.
+  - AF formatting matches the Acrobat reference for ≥ 200 cases.
+  - Coverage on the full corpus is reported. The target is ≥ 90% of IRS-type
+    forms and a published figure for the rest (the preliminary result is in
+    ADR-006).
 
 ### 1.14 Organise pages (MVP scope)
-- Page grid with resizable thumbnails; drag to reorder; multi-select.
-- Rotate (per page, or a range with odd/even); delete; duplicate.
-- Insert pages from a PDF or a blank page; extract (as one file or one file
-  per page).
-- **Merge:** combine files, reorder, keep bookmarks, resolve form-field name
-  collisions.
-- **Split:** by ranges or every N pages, with naming templates.
+- Page grid with resizable thumbnails, drag reorder, multi-select.
+- Rotate (per page, range, odd/even), delete, duplicate.
+- Insert from a PDF or a blank page. Extract (one file, or one per page).
+- Merge (reorder, keep bookmarks, resolve field-name collisions).
+- **Split by ranges.**
 - **AC:**
   - Round trip + interop for every command.
-  - Undo is exact.
-  - A merge of 100 corpus files keeps outlines and fields working.
+  - Exact undo.
+  - A 100-file merge keeps outlines and fields working.
 
 ### 1.15 Save safely and recover
-- Save (incremental by default), Save As, and the "Save optimized"
-  suggestion.
-- Signature-aware policy: never invalidate existing signatures without an
-  explicit warning.
-- Recovery dialog.
-- External-change detection.
-- Engine-crash replay ("no changes lost").
+- Save (incremental), Save As, and the "Save optimized" suggestion.
+- The signature-aware policy.
+- The recovery dialog, including the "last action didn't finish" prompt.
+- External-change detection. Engine-crash replay.
 - **AC:** the E2E crash test covers edit → kill → relaunch → restore →
   save → verify. Recovery is refused, with an explanation, when the original
   changed.
 
-### 1.16 CLI (MVP scope)
-- `folio info [--json]`, `folio validate --structure`, `folio merge`,
-  `folio split`.
-- Exit codes, `--json`, progress on stderr.
-- **AC:** snapshot tests on 20 corpus files.
+### 1.16 Opt-in security update check
+- First-run choice (no default), Preferences → Privacy, a signed
+  `updates.json` from GitHub Releases, the security banner, a verified
+  download (no silent install), and a policy override (ARCHITECTURE §9.2).
+- Key ceremony: the root keys generated offline on hardware keys and the
+  release key in a protected GitHub environment, documented in
+  `docs/KEYS.md` (§9.3).
+- **AC:**
+  - Nothing is fetched unless opted in (a test with a network-deny proxy).
+  - Tampered or unsigned `updates.json` is ignored.
+  - A revoked key in `keyring.json` is rejected.
+  - The request carries no identifiers (checked in the proxy log).
 
-### 1.17 Basic printing — **proposed addition, needs owner approval**
-- The native OS print dialog, page ranges, fit or actual size, and
-  print-with-comments.
-- It isn't in the owner's MVP list, but a PDF app without print is hard to
-  use daily. Cost: ~1 week. If declined, printing moves to v0.8.
+### 1.17 Printing: **owner decision pending** (estimate in ARCHITECTURE §11.2)
+- Basic print on all three platforms is **21–26 working days (~4–5
+  weeks)**:
+  - macOS 3–4 days (PDFKit, vector);
+  - Windows 8–10 days (Win32 dialog; the sandboxed renderer produces EMF and
+    the host plays it into the printer DC);
+  - Linux 4–5 days (GTK print dialog; PDF straight to CUPS, with the portal
+    in Flatpak);
+  - shared pipeline 4–5 days;
+  - CI virtual printers 2 days.
+- The options:
+  - (a) all in v0.1;
+  - (b) all in v0.1.x;
+  - (c) macOS + Linux in v0.1 and Windows in v0.1.x.
 
 ### 1.18 Release
-- Unsigned installers for every target within budgets.
+- Unsigned installers within budgets.
+- The first signed `updates.json`.
 - `docs/MILESTONE_v0.1_REPORT.md`.
+
+---
+
+## v0.1.x — MVP follow-ups (small releases after v0.1)
+- **CLI:** `papyrine info [--json]`, `validate --structure`, `merge`,
+  `split`, `update check`. Exit codes, `--json`, progress on stderr.
+  Snapshot tests on 20 files.
+- **Multi-document search:** across all open documents, with grouped
+  results.
+- **Two-page facing mode**, with or without a cover page, and continuous
+  facing.
+- **Stamps:** static built-ins (Approved, Draft, Confidential, Final, Not
+  Approved).
+- **Split every N pages**, with naming templates.
+- **Printing,** if the owner picks option (b) or (c) in 1.17.
+- Each item ships with the same AC standard (round trip, interop, E2E,
+  budgets).
 
 ### Deferred from the old Phase 1, and where each item went
 | Item | Milestone |
 |---|---|
-| Linearized (Fast Web View) output option | v0.2 |
-| Content-stream interpreter | v0.2 |
-| Multiple windows, dragging tabs between windows | v0.8 |
-| Split view; side-by-side synchronized view | v0.8 |
-| Presentation mode with transitions; reading mode | v0.8 |
-| Marquee zoom, loupe, rotate view | v0.8 |
-| Attachments pane | v0.4 |
-| Layers pane | v0.4 |
+| CLI, multi-document search, facing mode, stamps, split-every-N | v0.1.x |
+| Linearized (Fast Web View) output; content-stream interpreter | v0.2 |
 | Signatures pane | v0.3 |
-| Tags pane, content order | v0.7 |
-| Destinations pane | v0.4 |
-| Rulers, grids, guides | v0.4 |
-| Invert page colours, custom page background, Read Aloud | v0.7 |
-| XMP editor, custom metadata, initial-view settings editor | v0.7 |
-| Advanced Search (folders, regex, attachments, catalogue index) | v0.8 |
-| CLI beyond the four MVP commands | v0.2 onwards |
+| Attachments, layers and destinations panes; rulers, grids, guides | v0.4 |
+| Tags pane, content order; invert colours, custom page background, Read Aloud; XMP/custom metadata/initial-view editors | v0.7 |
+| Multiple windows + tab dragging; split and side-by-side views; presentation and reading modes; marquee zoom, loupe, rotate view; Advanced Search (folders, regex, catalogue) | v0.8 |
 
 ---
 
 ## v0.2 — Compress (flagship) and Organise+
-- 2.1 `folio-content` interpreter (effective DPI of every image usage,
+- 2.1 `papyrine-content` interpreter (effective DPI of every image usage,
   taking the max over usages).
-- 2.2 `folio-codecs`:
+- 2.2 `papyrine-codecs`:
   - mozjpeg (trellis, optimized Huffman, 4:4:4/4:2:0);
   - JPEG quality estimation from quantization tables;
   - OpenJPEG (lossy and lossless);
@@ -460,7 +489,7 @@ corrupt a file**. Only v0.1 features appear in the UI.
 - 8.1 Compare files (text, formatting, images, annotations, pages; report
   PDF; pixel mode).
 - 8.2 Action Wizard, macro recording, watched folders.
-- 8.3 Measure tools, portfolios, rich media, 3D poster fallback.
+- 8.3 Measure tools, portpapyrines, rich media, 3D poster fallback.
 - 8.4 Advanced printing (N-up, booklet, poster, print as image, …).
 - 8.5 Multi-window with tab dragging; split and side-by-side views;
   presentation and reading modes; marquee zoom and loupe; rotate view.
@@ -486,5 +515,5 @@ corrupt a file**. Only v0.1 features appear in the UI.
   ADR if it is significant.
 - No new work may run before first paint without an allowlist change
   justified in review.
-- Commit and push at the end of every task, once the owner has confirmed the
-  GitHub account.
+- Commit and push to `github.com/manjunathsharma10/papyrine` at the end of
+  every task.

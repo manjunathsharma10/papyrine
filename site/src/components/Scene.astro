@@ -1,0 +1,25 @@
+---
+/* Shared scene shell: folio number, kicker, heading, copy, status chip, and the art slot.
+   mode="pin"    the section is the timeline; a sticky stage holds the scene (needs html.anim).
+   mode="reveal" the art element is the timeline; the section scrolls normally. */
+import { status } from '../config';
+interface Props { id: string; mode?: 'pin' | 'reveal'; num: string; kicker: string; title: string; chip?: keyof typeof status | 'targets'; chipLabel?: string; pin?: string; flip?: boolean; artClass?: string; artStyle?: string; }
+const { id, mode = 'reveal', num, kicker, title, chip = 'coming-soon', chipLabel, pin, flip = false, artClass = '', artStyle } = Astro.props;
+const label = chipLabel ?? (chip === 'targets' ? 'Targets, not measurements' : status[chip]);
+---
+<section id={id} class:list={['scene', { flip }]} data-mode={mode} data-tl={mode === 'pin' ? '' : undefined} aria-labelledby={`${id}-title`} style={pin ? `--pin:${pin}` : undefined}>
+  <div class="stage">
+    <div class="wrap scene-grid">
+      <div class="scene-text">
+        <p class="folio-num"><span>{num}</span></p>
+        <p class="kicker">{kicker}</p>
+        <h2 id={`${id}-title`}>{title.split('|').map((t, i) => <><span class="ln">{t}</span>{' '}</>)}</h2>
+        <slot name="text" />
+        {label && <span class="chip">{label}</span>}
+      </div>
+      <div class:list={['art', artClass]} data-tl={mode === 'reveal' ? '' : undefined} data-mode={mode === 'reveal' ? 'reveal' : undefined} style={artStyle}>
+        <slot />
+      </div>
+    </div>
+  </div>
+</section>

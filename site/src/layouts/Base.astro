@@ -1,0 +1,61 @@
+---
+import '../styles/global.css';
+import { product, url, siteUrl } from '../config';
+import displayFont from '../assets/fonts/display.woff2?url';
+import bodyFont from '../assets/fonts/body.woff2?url';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+interface Props { title?: string; description?: string; }
+const { title = `${product.name}: a simple, lightweight, open-source PDF editor`, description = product.description } = Astro.props;
+const canonical = new URL(url(), siteUrl).href;
+const og = new URL(url('og.png'), siteUrl).href;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={url('favicon.svg')} type="image/svg+xml" />
+    <meta name="theme-color" content="#f6f1e7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#12100d" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={og} />
+    <meta property="og:image:alt" content={`${product.name}: ${product.tagline}`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" href={displayFont} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={bodyFont} as="font" type="font/woff2" crossorigin />
+    <!-- Runs before first paint: applies the saved theme, and switches scroll animation on only when
+         motion is allowed. Without it (no JS) the page is a complete static illustration. -->
+    <script is:inline>
+      (function () {
+        var d = document.documentElement;
+        try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') d.setAttribute('data-theme', t); } catch (e) {}
+        var m = window.matchMedia('(prefers-reduced-motion: no-preference)');
+        function apply() {
+          if (m.matches) {
+            d.classList.add('anim');
+            if (!(window.CSS && CSS.supports && CSS.supports('animation-timeline: view()'))) d.classList.add('sfb');
+          } else d.classList.remove('anim', 'sfb');
+        }
+        apply();
+        if (m.addEventListener) m.addEventListener('change', apply);
+      })();
+    </script>
+  </head>
+  <body id="top">
+    <a class="skip" href="#main">Skip to content</a>
+    <Header />
+    <main id="main"><slot /></main>
+    <Footer />
+    <script>
+      import '../scripts/theme';
+      import '../scripts/scroll-fallback';
+    </script>
+  </body>
+</html>

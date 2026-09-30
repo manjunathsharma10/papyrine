@@ -1,0 +1,23 @@
+{
+  "name": "folio-site",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview --port 4321",
+    "check": "node scripts/check-animations.mjs && node scripts/check-contrast.mjs && node scripts/check-js-size.mjs",
+    "lhci": "lhci autorun",
+    "screenshots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.3.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource/instrument-serif": "^5.3.0",
+    "@lhci/cli": "^0.15.1",
+    "playwright": "^1.63.0"
+  }
+}

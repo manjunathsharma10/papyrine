@@ -1,0 +1,44 @@
+---
+import { product, repo } from '../config';
+import Page from '../components/Page.astro';
+import GitHubMark from '../components/GitHubMark.astro';
+// Fan angle / offset (cqw) and the sidebar slot each flying page lands in (see scenes.css).
+const fly = [
+  { fx: -17, fy: 1.5, fa: -21, ex: -41, ey: -9.65 },
+  { fx: -8, fy: 0.5, fa: -9, ex: -41, ey: 3.65 },
+  { fx: 8, fy: 0.5, fa: 9, ex: -41, ey: 16.95 },
+  { fx: 17, fy: 1.5, fa: 21, ex: -41, ey: 30.25 },
+];
+---
+<section id="hero" class="scene hero" data-mode="pin" data-tl style="--pin:170svh" aria-labelledby="hero-title">
+  <div class="stage">
+    <div class="wrap scene-grid hero-grid">
+      <div class="scene-text hero-text">
+        <p class="chip quiet">Open source · Pre-release</p>
+        <h1 id="hero-title">{product.tagline}</h1>
+        <p class="lede">{product.name} is a simple, lightweight PDF editor for {product.platforms}. Fast to launch, small to install, private by design, and free and open source.</p>
+        <div class="btn-row">
+          <a class="btn btn-primary" href={repo.url}><GitHubMark />Follow development on GitHub</a>
+          <a class="btn btn-alt" href="#annotate">See how it will work</a>
+        </div>
+      </div>
+      <figure class="art hero-art">
+        <div class="hero-canvas" role="img" aria-label={`Concept illustration: a single PDF page fans out into a stack of pages, then settles into the ${product.name} app window, with page thumbnails in a sidebar and the page open in the main view.`}>
+          <div class="hero-win a k-win" style="--a:.38;--b:.78">
+            <div class="win-bar"><i></i><i></i><i></i><span class="win-tool"></span><span class="win-tool"></span><span class="win-tool hot"></span></div>
+            <div class="win-side"><Page class="win-thumb cur" seed={0} image /></div>
+            <div class="win-main"></div>
+          </div>
+          {fly.map((f, i) => (
+            <Page class="hp a lin" seed={i + 1} title={i % 2 === 0}
+              style={`--a:.03;--b:.86;--fx:${f.fx}cqw;--fy:${f.fy}cqw;--fa:${f.fa}deg;--ex:${f.ex}cqw;--ey:${f.ey}cqw;--z:${i + 1}`} />
+          ))}
+          <div class="hero-float">
+            <Page class="hp hp-main a lin" seed={0} image style="--a:.03;--b:.86" />
+          </div>
+        </div>
+        <figcaption>Concept illustration, not a screenshot. {product.name} is pre-release and there is nothing to download yet.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>

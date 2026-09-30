@@ -1,0 +1,25 @@
+---
+import { product, repo, url } from '../config';
+import GitHubMark from './GitHubMark.astro';
+import Mark from './Mark.astro';
+const links = [
+  ['annotate', 'Annotate'], ['organise', 'Organise'], ['fill', 'Fill & sign'], ['compress', 'Compress'],
+  ['lightweight', 'Lightweight'], ['offline', 'Private'], ['open-source', 'Open source'],
+];
+---
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href={url()} aria-label={`${product.name}, home`}><Mark />{product.name}</a>
+    <nav class="site-nav" aria-label="Sections">
+      {links.map(([id, label]) => <a href={`#${id}`}>{label}</a>)}
+    </nav>
+    <div class="header-actions">
+      <a class="gh-link" href={repo.url}><GitHubMark />GitHub</a>
+      <button class="icon-btn" type="button" data-theme-toggle data-mode="system" hidden aria-label="Colour theme: automatic. Activate to change.">
+        <svg class="i-system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>
+        <svg class="i-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+        <svg class="i-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
