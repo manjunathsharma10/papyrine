@@ -4,8 +4,7 @@ A fast, offline-first, open-source desktop PDF editor for Windows, macOS and
 Linux. It aims for full parity with professional PDF suites, and its flagship
 feature is a best-in-class PDF compression and optimization engine.
 
-> **Status:** planning (architecture draft v2 under review). "Folio" is a working name — see ADR-019.
-> application code yet.
+> **Status:** planning (architecture draft v2 under review). "Folio" is a working name — see ADR-019. No application code yet.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
