@@ -3,8 +3,20 @@ node_modules/
 dist/
 .DS_Store
 *.folio-tmp-*
-/corpus/cache/
 /bench/results/local/
 .env
+
+# Test corpora are never committed (ADR-017): only corpus/manifest.toml and scripts.
+/corpus/*
+!/corpus/manifest.toml
+!/corpus/fetch
+!/corpus/fetch.*
+!/corpus/README.md
+*.pdf
+*.PDF
+*.fdf
+*.xfdf
 *.p12
 *.pfx
+*.key
+*.pem
