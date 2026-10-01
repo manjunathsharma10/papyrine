@@ -1,6 +1,6 @@
 ---
 import Scene from '../components/Scene.astro';
-import { compressExample as ex } from '../config';
+import { compressExample as ex, product } from '../config';
 const saved = Math.round((1 - ex.balancedMb / ex.originalMb) * 100);
 const frac = (ex.balancedMb / ex.originalMb).toFixed(3);
 // Counter values, each stacked on the last and switched on by scroll (opacity only).
@@ -9,7 +9,7 @@ const fmt = (n: number) => `${n} MB`;
 ---
 <Scene id="compress" mode="pin" num="05" kicker="Compress" title="Smaller files.|Same pages." pin="210svh" artClass="pin-art cmp-art">
   <Fragment slot="text">
-    <p>See what is taking up space, pick a preset, and compare before and after side by side. Folio will never save a file that ends up larger than the one you started with.</p>
+    <p>See what is taking up space, pick a preset, and compare before and after side by side. {product.name} will never save a file that ends up larger than the one you started with.</p>
     <p class="fineprint">Example numbers, for illustration only. Real results depend on the file. “Balanced” is one of several planned presets.</p>
   </Fragment>
   <figure>

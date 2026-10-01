@@ -12,8 +12,18 @@ html:not(.anim) .scene[data-mode="pin"] { padding-block: clamp(4rem, 9vw, 8rem);
   .scene-text { gap: .8rem; }
   .scene-text p { font-size: 1rem; }
   .scene .scene-text h2 { font-size: clamp(2rem, 9vw, 2.6rem); }
-  html.anim .scene[data-mode="pin"] .stage { align-items: start; padding-top: calc(var(--header-h) + 1rem); }
-  .pin-art { width: min(100%, calc((100svh - var(--header-h) - var(--text-h, 23rem)) * var(--ar))); }
+  /* Pinned scenes on phones: the art takes whatever height the text leaves, so nothing is clipped
+     on short screens. Art boxes scale by aspect ratio; the compress stack shrinks its split view. */
+  html.anim .scene[data-mode="pin"] .stage { display: block; padding-top: calc(var(--header-h) + 1rem); padding-bottom: .75rem; }
+  html.anim .scene[data-mode="pin"] .scene-grid { height: 100%; grid-template-rows: auto minmax(0, 1fr); align-items: start; }
+  html.anim .scene[data-mode="pin"] .art { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+  html.anim .scene[data-mode="pin"] .art > figure { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
+  html.anim .scene[data-mode="pin"] figcaption { flex: none; margin-top: .5rem; font-size: .75rem; }
+}
+@media (max-width: 52rem) and (max-height: 720px) {
+  .scene-text .folio-num, .scene-text .fineprint { display: none; }
+  .scene-text p { font-size: .92rem; line-height: 1.45; }
+  .hero-text .lede { font-size: .92rem; }
 }
 
 /* ===== Hero ===== */
@@ -57,8 +67,8 @@ html.anim .hero-float { animation: float-in .9s cubic-bezier(.2, .7, .2, 1) both
   .hero-text .lede { font-size: 1rem; }
   .hero-text .btn-alt { display: none; }
   .hero h1 { font-size: clamp(2.05rem, 9.4vw, 2.6rem); }
-  .hero-art { --text-h: 26rem; width: min(100%, calc((100svh - var(--header-h) - var(--text-h)) * 1.333)); justify-self: center; }
-  .hero-art figcaption { font-size: .75rem; margin-top: .5rem; }
+  .hero-art { justify-self: stretch; }
+  html.anim .hero-canvas { flex: 1 1 0; min-height: 0; width: auto; max-width: 100%; align-self: center; }
 }
 
 /* ===== At a glance ===== */
@@ -99,7 +109,7 @@ html.anim .hero-float { animation: float-in .9s cubic-bezier(.2, .7, .2, 1) both
 .frame-a { border-color: var(--tab-a); }
 .frame-m { left: 1.9cqw; top: 25.5cqw; width: 96.2cqw; height: calc((var(--ph) + 12) * 1cqw); border-style: solid; border-color: var(--ink); color: var(--ink); }
 @media (max-width: 52rem) {
-  .org-art { --ar: 1.111; --text-h: 20rem; }
+  html.anim .org { flex: 1 1 0; min-height: 0; width: auto; max-width: 100%; align-self: center; }
   .org { aspect-ratio: 10 / 9; --pw: 20; --ph: 26; --step: 24; --xa: 4; --xb: 16; --ya: 10; --yb: 52; --adx: 0; --ady: 0; --bdx: -12; --bdy: -12; }
   .frame-a { left: 1cqw; top: 4cqw; width: 98cqw; height: 38cqw; }
   .frame-b { left: 13cqw; top: 46cqw; width: 74cqw; height: 38cqw; }
@@ -109,7 +119,7 @@ html.anim .hero-float { animation: float-in .9s cubic-bezier(.2, .7, .2, 1) both
 
 /* ===== Fill and sign ===== */
 .fill-page svg { font-family: var(--font-body); }
-.lbl { font: 500 11px var(--font-body); fill: var(--paper-ink); opacity: .7; letter-spacing: .04em; text-transform: uppercase; }
+.lbl { font: 500 11px var(--font-body); fill: var(--paper-ink); opacity: .8; letter-spacing: .04em; text-transform: uppercase; }
 .typed { font: 500 15px var(--font-body); fill: #1d2b4f; }
 .cover { transform: scaleX(0); }
 .tick { fill: none; stroke: #1d2b4f; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
@@ -148,7 +158,14 @@ html.anim .hero-float { animation: float-in .9s cubic-bezier(.2, .7, .2, 1) both
 html.anim .k-split-w { animation-name: k-split-w; }
 html.anim .k-split-i { animation-name: k-split-i; }
 html.anim .k-fill { animation-name: k-fill; }
-@media (max-width: 52rem) { .cmp-art { --text-h: 22rem; --ar: .95; } .cmp { gap: .6rem; } .cmp-num { font-size: 2.8rem; } .split { aspect-ratio: 16 / 9; } }
+@media (max-width: 52rem) {
+  .cmp { gap: .6rem; }
+  .cmp-num { font-size: 2.6rem; }
+  html.anim .cmp { flex: 1 1 0; min-height: 0; grid-template-rows: auto auto minmax(5rem, 1fr) auto auto; }
+  html.anim .split { aspect-ratio: auto; min-height: 0; }
+  .track .rail { margin-block: .5rem; }
+}
+@media (max-width: 52rem) and (max-height: 720px) { .cmp-num { font-size: 2.1rem; } .save { font-size: .85rem; } }
 
 /* ===== Lightweight ===== */
 .bars { display: grid; gap: 2.4rem; width: 100%; max-width: 40rem; margin-inline: auto; }
@@ -161,7 +178,7 @@ html.anim .k-fill { animation-name: k-fill; }
 .bt { position: relative; height: 1.5rem; }
 .bar { position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: .3rem; transform-origin: left center; }
 .bar.ref { background: repeating-linear-gradient(135deg, var(--rule) 0 6px, transparent 6px 12px); border: 1px solid var(--muted); }
-.bar.folio { background: var(--accent); }
+.bar.own { background: var(--accent); }
 .ceil { position: absolute; left: var(--at); top: -.3rem; bottom: -.3rem; border-left: 2px dashed var(--muted); }
 .ceil span { position: absolute; left: .4rem; top: 100%; margin-top: .1rem; font: 500 .72rem/1.2 var(--font-body); color: var(--muted); white-space: nowrap; }
 .bgroup:first-child .brow:last-child { margin-bottom: 1rem; }
@@ -203,3 +220,13 @@ html.anim .k-net-lo { animation-name: k-net-lo; }
 .road li strong { color: var(--ink); font-weight: 600; }
 
 .ln { display: block; }
+
+/* Short desktop windows (e.g. 1280x600): tighten type so pinned stages never clip. */
+@media (min-width: 52.01rem) and (max-height: 680px) {
+  .hero h1 { font-size: min(5.6rem, 9.5svh); }
+  .hero-text { gap: .9rem; }
+  .hero-text .lede { font-size: 1.05rem; }
+  .scene .scene-text h2 { font-size: min(3.9rem, 8svh); }
+  .cmp-num { font-size: 3rem; }
+  .cmp { gap: .6rem; }
+}

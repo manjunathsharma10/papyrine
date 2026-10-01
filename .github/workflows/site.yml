@@ -1,0 +1,67 @@
+name: site
+
+# Builds and checks the marketing site (site/) on every relevant push and PR.
+# Deploys to GitHub Pages only on pushes to main AND only once the repository variable
+# PAGES_ENABLED is set to "true" (Settings -> Secrets and variables -> Actions -> Variables),
+# after Pages has been enabled with Source = "GitHub Actions". Until then this workflow just verifies.
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: site
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Budgets (animated properties, contrast, JS size)
+        run: npm run check
+      - name: Browser checks (layout fits at many sizes, scroll fallback matches native)
+        run: |
+          npm run preview > /tmp/preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4321/papyrine/ >/dev/null && break; sleep 1; done
+          SITE_URL=http://localhost:4321/papyrine/ npm run check:browser
+      - name: Lighthouse CI (performance, accessibility, best practices, SEO >= 95; LCP < 1.5 s)
+        run: npx lhci autorun
+      - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

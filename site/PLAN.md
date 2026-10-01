@@ -1,6 +1,11 @@
 # Folio marketing site — plan
 
-Status: **draft for approval.** No site code exists yet.
+Status: **approved and built** (see README.md).
+
+> **Rename:** this plan was written when the working name was Folio. The owner has since accepted
+> **Papyrine** (ADR-019) and the repo is now `papyrine`. The site reads the name and repo from
+> `src/config.ts`, so it now says Papyrine and is served under `/papyrine/`. Where this plan says
+> "Folio", read the product name.
 
 ## 0. Constraints from the repo
 

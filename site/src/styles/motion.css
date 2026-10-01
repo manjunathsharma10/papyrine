@@ -49,7 +49,7 @@ html.anim .scene[data-mode="pin"] .stage { position: sticky; top: 0; height: 100
 @keyframes k-draw    { from { stroke-dashoffset: 1.02; } }
 @keyframes k-move    { from { transform: translate(var(--x0, 0px), var(--y0, 0px)); } }
 @keyframes k-rot     { from { transform: rotate(var(--r0, 90deg)); } }
-@keyframes k-dim     { from { opacity: .38; } }
+@keyframes k-dim     { from { opacity: .62; transform: translateX(-.35rem); } }
 
 html.anim .k-fade   { animation-name: k-fade; }
 html.anim .k-out    { animation-name: k-out; }

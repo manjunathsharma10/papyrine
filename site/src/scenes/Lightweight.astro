@@ -5,7 +5,7 @@ import { targets, product } from '../config';
 <Scene id="lightweight" num="06" kicker="Lightweight" title="Light on|your machine." chip="targets" flip artClass="light-art">
   <Fragment slot="text">
     <p>{product.name} is built with Tauri and Rust on top of PDFium, and uses your system’s web view instead of shipping a browser of its own. The aim is a small download and a window that opens as fast as you double-click.</p>
-    <p class="fineprint">Folio’s bars are the project’s targets. Real benchmarks will replace them once there is a build to measure. Reference bars are illustrative and do not measure any product.</p>
+    <p class="fineprint">{product.name}’s bars are the project’s targets. Real benchmarks will replace them once there is a build to measure. Reference bars are illustrative and do not measure any product. The Linux AppImage bundles a web view and has its own {targets.appImageCeilingMb} MB ceiling.</p>
   </Fragment>
   <figure>
     <div class="bars">
@@ -17,7 +17,7 @@ import { targets, product } from '../config';
         </div>
         <div class="brow">
           <div class="bhead"><span>{product.name} <em>target</em></span><b class="a k-fade tnum" style="--a:.5;--b:.6">≤ {targets.installGoalMb} MB</b></div>
-          <div class="bt"><i class="bar folio a k-grow-x" style={`--w:${(targets.installGoalMb / 500) * 100}%;--a:.4;--b:.58`}></i><i class="ceil" style={`--at:${(targets.installCeilingMb / 500) * 100}%`}><span>{targets.installCeilingMb} MB hard ceiling</span></i></div>
+          <div class="bt"><i class="bar own a k-grow-x" style={`--w:${(targets.installGoalMb / 500) * 100}%;--a:.4;--b:.58`}></i><i class="ceil" style={`--at:${(targets.installCeilingMb / 500) * 100}%`}><span>{targets.installCeilingMb} MB hard ceiling</span></i></div>
         </div>
       </div>
       <div class="bgroup">
@@ -28,7 +28,7 @@ import { targets, product } from '../config';
         </div>
         <div class="brow">
           <div class="bhead"><span>{product.name} <em>target</em></span><b class="a k-fade tnum" style="--a:.84;--b:.94">&lt; {targets.coldLaunchSeconds.toFixed(1)} s</b></div>
-          <div class="bt"><i class="bar folio a k-grow-x" style={`--w:${(targets.coldLaunchSeconds / 6) * 100}%;--a:.8;--b:.96`}></i></div>
+          <div class="bt"><i class="bar own a k-grow-x" style={`--w:${(targets.coldLaunchSeconds / 6) * 100}%;--a:.8;--b:.96`}></i></div>
         </div>
       </div>
     </div>

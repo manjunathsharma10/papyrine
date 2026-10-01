@@ -6,7 +6,7 @@ import bodyFont from '../assets/fonts/body.woff2?url';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 interface Props { title?: string; description?: string; }
-const { title = `${product.name}: a simple, lightweight, open-source PDF editor`, description = product.description } = Astro.props;
+const { title = `${product.name}: a simple, lightweight, open-source PDF editor`, description = `${product.name} is ${product.description.charAt(0).toLowerCase()}${product.description.slice(1)}` } = Astro.props;
 const canonical = new URL(url(), siteUrl).href;
 const og = new URL(url('og.png'), siteUrl).href;
 ---

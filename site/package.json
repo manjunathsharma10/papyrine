@@ -1,5 +1,5 @@
 {
-  "name": "folio-site",
+  "name": "papyrine-site",
   "private": true,
   "type": "module",
   "version": "0.0.1",
@@ -9,7 +9,10 @@
     "preview": "astro preview --port 4321",
     "check": "node scripts/check-animations.mjs && node scripts/check-contrast.mjs && node scripts/check-js-size.mjs",
     "lhci": "lhci autorun",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "check:browser": "node scripts/check-layout.mjs && node scripts/check-fallback.mjs",
+    "contact-sheet": "node scripts/contact-sheet.mjs",
+    "og": "node --experimental-strip-types scripts/og.mjs"
   },
   "dependencies": {
     "astro": "^7.3.5"
@@ -18,6 +21,11 @@
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource/instrument-serif": "^5.3.0",
     "@lhci/cli": "^0.15.1",
-    "playwright": "^1.63.0"
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.63.0",
+    "pngjs": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

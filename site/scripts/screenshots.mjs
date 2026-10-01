@@ -1,13 +1,13 @@
 // Captures every scene at desktop and mobile widths, in both themes, at start / middle / end of
 // its scroll progress. Uses the system Chrome (no browser download).
 //   npm run screenshots                       (needs a running server, default the dev server)
-//   SITE_URL=http://localhost:4321/folio/ npm run screenshots
+//   SITE_URL=http://localhost:4321/papyrine/ npm run screenshots
 //   REDUCED=1 npm run screenshots             (prefers-reduced-motion: static end states)
 import { chromium } from 'playwright';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-const url = process.env.SITE_URL ?? 'http://localhost:4322/folio/';
+const url = process.env.SITE_URL ?? 'http://localhost:4322/papyrine/';
 const out = path.resolve(process.env.OUT ?? 'review-screenshots');
 const reduced = process.env.REDUCED === '1';
 const only = process.env.ONLY?.split(',');

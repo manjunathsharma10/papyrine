@@ -1,20 +1,20 @@
 /**
  * Single source of truth for everything that may change: the product name,
  * repo, licence and what is planned when. Nothing else in the site hardcodes these.
- * Feature milestones mirror docs/ROADMAP.md; Folio is pre-release, so every
+ * Feature milestones mirror docs/ROADMAP.md; the product is pre-release, so every
  * feature is "Coming soon".
  */
 export const product = {
-  name: 'Folio',
+  name: 'Papyrine',
   tagline: 'Everything you need from a PDF editor, without the bloat.',
   description:
-    'Folio is a simple, lightweight, open-source PDF editor for Windows, macOS and Linux. Fast to launch, small to install, private and fully offline. Pre-release.',
+    'A simple, lightweight, open-source PDF editor for Windows, macOS and Linux. Fast to launch, small to install, private and fully offline. Pre-release.',
   platforms: 'Windows, macOS and Linux',
 };
 
 export const repo = {
   owner: 'manjunathsharma10',
-  name: 'folio',
+  name: 'papyrine',
   get url() {
     return `https://github.com/${this.owner}/${this.name}`;
   },
@@ -34,6 +34,7 @@ export const base = process.env.SITE_BASE ?? `/${repo.name}`;
 export const targets = {
   installGoalMb: 30,
   installCeilingMb: 50,
+  appImageCeilingMb: 100,
   coldLaunchSeconds: 1.0,
 };
 
@@ -49,5 +50,5 @@ export const milestones = [
   { version: 'v0.3', title: 'Sign and protect', items: 'Electronic and digital signatures, encryption, redaction' },
 ];
 
-/** Prefix a path with the deploy base ("/folio/…"). */
+/** Prefix a path with the deploy base ("/papyrine/…"). */
 export const url = (path = '') => `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
