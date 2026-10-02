@@ -87,6 +87,11 @@ def extract(path):
     doc = Doc(j["qpdf"])
     out, seen = [], set()
     root = doc.dictof(doc.trailer.get("/Root")) or {}
+    acro = doc.dictof(root.get("/AcroForm")) or {}
+    flds = doc.get(acro.get("/Fields")) if acro else None
+    out.append({"meta": {"acroform": bool(acro), "xfa": "/XFA" in acro,
+                         "fields": len(flds) if isinstance(flds, list) else 0,
+                         "encrypted": "/Encrypt" in doc.trailer}})
     # document-level JavaScript name tree
     names = doc.dictof(root.get("/Names")) or {}
     def tree(n, depth=0):
@@ -144,7 +149,7 @@ def main():
         return fid, items
     with ThreadPoolExecutor(8) as ex, open(out_path, "w") as fo:
         for fid, items in ex.map(work, files):
-            if not items: fo.write(json.dumps({"form": fid, "none": True}) + "\n")
+            if not [i for i in items if "meta" not in i]: fo.write(json.dumps({"form": fid, "none": True}) + "\n")
             for it in items:
                 it["form"] = fid
                 fo.write(json.dumps(it, ensure_ascii=False) + "\n")

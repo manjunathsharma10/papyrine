@@ -12,7 +12,7 @@
 use std::io::{BufRead, Write};
 
 use papyrine_forms::boilerplate::fingerprint;
-use papyrine_forms::{Verdict, analyze};
+use papyrine_forms::{DateEnv, Event, Verdict, analyze, run_script};
 
 struct Json<'a> {
     b: &'a [u8],
@@ -209,9 +209,30 @@ fn main() {
             let _ = writeln!(out, "{}\t{head}", fp.as_deref().unwrap_or("-"));
             continue;
         }
+        let mut exec = String::new();
         let (verdict, detail, blocker) = match analyze(&script) {
             Verdict::Empty => ("empty", String::new(), String::new()),
-            Verdict::Accepted(c) => ("accepted", format!("{} calls", c.len()), String::new()),
+            Verdict::Accepted(c) => {
+                // Smoke-run accepted scripts in every event mode: nothing may throw or panic.
+                let none = std::collections::HashMap::<String, String>::new();
+                let env = DateEnv::default();
+                let ok = ["1234.5", "", "03/07/2023", "-5", "abc"].iter().all(|v| {
+                    [
+                        Event::format(v),
+                        Event::commit(v),
+                        Event::keystroke(v, "1", 0, 0),
+                    ]
+                    .into_iter()
+                    .all(|mut ev| {
+                        !matches!(
+                            run_script(&script, &mut ev, &none, &env),
+                            Err(papyrine_forms::RunError::Rejected(_))
+                        )
+                    })
+                });
+                exec = if ok { "ok" } else { "error" }.to_string();
+                ("accepted", format!("{} calls", c.len()), String::new())
+            }
             Verdict::Boilerplate(n) => ("boilerplate", n.to_string(), String::new()),
             Verdict::Rejected { reason, blocker } => {
                 ("rejected", reason.to_string(), blocker.label().to_string())
@@ -222,10 +243,11 @@ fn main() {
             o.push_str(&format!("{}:{},", esc(k), esc(v)));
         }
         o.push_str(&format!(
-            "\"verdict\":{},\"detail\":{},\"blocker\":{},\"fingerprint\":{}}}",
+            "\"verdict\":{},\"detail\":{},\"blocker\":{},\"exec\":{},\"fingerprint\":{}}}",
             esc(verdict),
             esc(&detail),
             esc(&blocker),
+            esc(&exec),
             esc(fp.as_deref().unwrap_or(""))
         ));
         let _ = writeln!(out, "{o}");

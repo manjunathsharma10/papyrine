@@ -18,7 +18,8 @@ for l in open(verdicts_path):
 forms = {}  # id -> dict
 for i, r in enumerate(raw):
     f = forms.setdefault(r["form"], {"scripts": [], "error": None, "nonjs": 0})
-    if "error" in r: f["error"] = r["error"]
+    if "meta" in r: f["meta"] = r["meta"]
+    elif "error" in r: f["error"] = r["error"]
     elif "script" in r:
         v = ver[str(i)]
         f["scripts"].append({"trigger": r["trigger"], "field": r.get("field", ""), "verdict": v["verdict"],
@@ -130,6 +131,42 @@ for fid, f in real.items():
 blk_forms.sort(reverse=True)
 out["top_uncovered_forms"] = blk_forms[:15]
 out["uncovered_forms"] = {fid: cats for _, fid, cats in blk_forms}
+
+# ---- what-if: small "pattern" recognizers that a later wave could add -------------
+import re
+def norm(t):
+    t = re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
+    t = re.sub(r"(^|\s)//[^\r\n]*", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+Q = r'"[^"]*"'
+PATTERNS = {
+    "hide-zero (if (event.value==0) event.value=\"\")": r'^if ?\( ?event\.value ?===? ?0 ?\) ?(\{ ?)?event\.value ?= ?"" ?;? ?\}? ?$',
+    "upper-case (event.value/change = ... .toUpperCase())": r'^event\.(value|change) ?= ?event\.(value|change)\.toUpperCase\(\) ?;? ?$',
+    "launchURL(literal)": r'^app\.launchURL\( ?' + Q + r' ?(, ?(true|false))? ?\) ?;? ?$',
+    "fill-colour highlight (event.target.fillColor)": r'^if ?\( ?event\.value ?!= ?"" ?\) ?\{ ?event\.target\.fillColor ?= ?color\.\w+ ?;? ?\} ?else ?\{ ?event\.target\.fillColor ?= ?color\.\w+ ?;? ?\} ?$',
+    "checkbox mutual exclusion (var A=getField; if (A.value==..) B.value=..)": r'^(var \w+ ?= ?(this\.)?getField\(' + Q + r'\) ?;? ?)+(if ?\( ?\w+\.value ?===? ?' + Q + r' ?\) ?\{ ?(\w+\.value ?= ?' + Q + r' ?;? ?)+\} ?)+$',
+    "makeExclusive(ButtonNameArray) calls + helper": r'^(ButtonNameArray ?= ?\[[^\]]*\] ?;? ?makeExclusive\(ButtonNameArray\) ?;?|function makeExclusive\(exArray\).*)$',
+    "focus a field (getField(..).setFocus())": r'^var \w+ ?= ?this\.getField\(' + Q + r'\) ?; ?this\.getField\(' + Q + r'\)\.setFocus\(\) ?;? ?$',
+}
+CP = {k: re.compile(v, re.S) for k, v in PATTERNS.items()}
+pat_scripts = collections.Counter(); pat_forms = collections.defaultdict(set)
+def pat_of(sc):
+    n = norm(sc["script"])
+    for k, rx in CP.items():
+        if rx.match(n): return k
+    return None
+for fid, f in real.items():
+    for s in f["scripts"]:
+        if s["verdict"] == "rejected":
+            k = pat_of(s)
+            s["pattern"] = k
+            if k: pat_scripts[k] += 1; pat_forms[k].add(fid)
+out["patterns"] = {k: {"scripts": pat_scripts[k], "forms": len(pat_forms[k])} for k in PATTERNS}
+def covered_with_patterns(f, which=None):
+    return all(s["verdict"] in COVERED or (s.get("pattern") and (which is None or s["pattern"] in which)) for s in f["scripts"])
+out["real_covered_with_patterns"] = sum(1 for f in real.values() if covered_with_patterns(f))
+out["real_excl_irs_covered_with_patterns"] = sum(1 for k, f in real.items() if source_of(k) != "irs" and covered_with_patterns(f))
+out["pattern_marginal_forms"] = {k: sum(1 for f in real.values() if not covered(f) and covered_with_patterns(f, {k})) for k in PATTERNS}
 
 if "--json" in sys.argv:
     json.dump(out, open(sys.argv[sys.argv.index("--json") + 1], "w"), indent=1)

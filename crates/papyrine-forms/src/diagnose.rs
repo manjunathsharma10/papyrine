@@ -93,33 +93,69 @@ pub fn analyze(src: &str) -> Verdict {
     }
 }
 
-fn classify(src: &str, reason: &Reject) -> Blocker {
-    let Ok(toks) = tokenize(src) else {
-        return Blocker::LexFailure;
-    };
-    let ids: Vec<&str> = toks
-        .iter()
-        .filter_map(|t| {
-            if let Tok::Ident(s) = &t.tok {
-                Some(s.as_str())
-            } else {
-                None
+/// Identifier-ish words of `src`, plus `a.b` adjacency, from tokens when the
+/// text lexes and from a crude character scan when it does not (regex
+/// literals and the like), so unlexable scripts are still attributed.
+struct Features {
+    ids: Vec<String>,
+    members: Vec<(String, String)>,
+    lexed: bool,
+}
+
+impl Features {
+    fn of(src: &str) -> Features {
+        if let Ok(toks) = tokenize(src) {
+            let mut ids = Vec::new();
+            let mut members = Vec::new();
+            for (i, t) in toks.iter().enumerate() {
+                if let Tok::Ident(a) = &t.tok {
+                    ids.push(a.clone());
+                    if let (Some(Tok::Punct('.')), Some(Tok::Ident(b))) = (
+                        toks.get(i + 1).map(|x| &x.tok),
+                        toks.get(i + 2).map(|x| &x.tok),
+                    ) {
+                        members.push((a.clone(), b.clone()));
+                    }
+                }
             }
-        })
-        .collect();
-    let has = |w: &str| ids.contains(&w);
-    let dotted = |a: &str, b: &str| {
-        toks.windows(3).any(|w| {
-            matches!(&w[0].tok, Tok::Ident(x) if x == a)
-                && matches!(&w[1].tok, Tok::Punct('.'))
-                && matches!(&w[2].tok, Tok::Ident(y) if y == b)
-        })
-    };
-    let member_of = |obj: &str| {
-        toks.windows(2).any(|w| {
-            matches!(&w[0].tok, Tok::Ident(x) if x == obj) && matches!(&w[1].tok, Tok::Punct('.'))
-        })
-    };
+            return Features {
+                ids,
+                members,
+                lexed: true,
+            };
+        }
+        let mut ids = Vec::new();
+        let mut members = Vec::new();
+        let words: Vec<&str> = src
+            .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$' || c == '.'))
+            .filter(|w| !w.is_empty())
+            .collect();
+        for w in words {
+            let parts: Vec<&str> = w.split('.').filter(|p| !p.is_empty()).collect();
+            for (i, p) in parts.iter().enumerate() {
+                ids.push((*p).to_string());
+                if let Some(n) = parts.get(i + 1) {
+                    members.push(((*p).to_string(), (*n).to_string()));
+                }
+            }
+        }
+        Features {
+            ids,
+            members,
+            lexed: false,
+        }
+    }
+    fn has(&self, w: &str) -> bool {
+        self.ids.iter().any(|i| i == w)
+    }
+    fn member_of(&self, obj: &str) -> bool {
+        self.members.iter().any(|(a, _)| a == obj)
+    }
+}
+
+fn classify(src: &str, reason: &Reject) -> Blocker {
+    let f = Features::of(src);
+    let has = |w: &str| f.has(w);
 
     if has("ADBE") || has("xfa_installed") || has("xfa_version") {
         return Blocker::UnknownBoilerplate;
@@ -144,10 +180,10 @@ fn classify(src: &str, reason: &Reject) -> Blocker {
     {
         return Blocker::Navigation;
     }
-    if has("getField") || has("getNthFieldName") || has("numFields") || dotted("this", "getField") {
+    if has("getField") || has("getNthFieldName") || has("numFields") {
         return Blocker::FieldAccess;
     }
-    if member_of("util") {
+    if f.member_of("util") {
         return Blocker::UtilFunctions;
     }
     if has("RegExp")
@@ -157,7 +193,7 @@ fn classify(src: &str, reason: &Reject) -> Blocker {
     {
         return Blocker::RegExp;
     }
-    if member_of("app") {
+    if f.member_of("app") {
         return Blocker::AppObject;
     }
     match reason {
@@ -174,8 +210,11 @@ fn classify(src: &str, reason: &Reject) -> Blocker {
     {
         return Blocker::ControlFlow;
     }
-    if member_of("event") {
+    if f.member_of("event") {
         return Blocker::EventManipulation;
+    }
+    if !f.lexed {
+        return Blocker::LexFailure;
     }
     if let Reject::UnknownFunction(_) = reason {
         return Blocker::CustomFunction;
