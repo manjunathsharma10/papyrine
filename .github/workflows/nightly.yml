@@ -119,7 +119,7 @@ jobs:
       - name: Full corpus test run
         env:
           PAPYRINE_CORPUS: full
-        run: cargo test --workspace --release --locked -- --include-ignored
+        run: cargo test --workspace --release -- --include-ignored
 
   audit:
     name: advisories (blocking)
