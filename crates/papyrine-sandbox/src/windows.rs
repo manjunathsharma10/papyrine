@@ -232,6 +232,9 @@ fn make_job(profile: &Profile) -> io::Result<OwnedHandle> {
         | JOB_OBJECT_LIMIT_ACTIVE_PROCESS
         | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
     ext.BasicLimitInformation.ActiveProcessLimit = 1;
+    if variant("noproclimit") {
+        ext.BasicLimitInformation.LimitFlags &= !JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+    }
     if let Some(limit) = profile.memory_limit {
         ext.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PROCESS_MEMORY;
         ext.ProcessMemoryLimit = limit as usize;
@@ -459,7 +462,9 @@ pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
             EXTENDED_STARTUPINFO_PRESENT
                 | CREATE_SUSPENDED
                 | CREATE_UNICODE_ENVIRONMENT
-                | CREATE_NO_WINDOW,
+                // No console: a console subsystem child would need conhost.exe, which the
+                // one-process job limit forbids (it fails with 0xC0000142).
+                | DETACHED_PROCESS,
             env.as_ptr().cast(),
             cwd.as_ptr(),
             &si.StartupInfo,
