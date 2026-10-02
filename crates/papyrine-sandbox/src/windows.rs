@@ -37,7 +37,9 @@ use std::ptr::{null, null_mut};
 use std::sync::Mutex;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Security::Authorization::*;
-use windows_sys::Win32::Security::Isolation::DeriveAppContainerSidFromAppContainerName;
+use windows_sys::Win32::Security::Isolation::{
+    CreateAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
+};
 use windows_sys::Win32::Security::*;
 use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 use windows_sys::Win32::System::JobObjects::*;
@@ -49,7 +51,7 @@ const PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES: usize = 0x0002_0009;
 const PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY: usize = 0x0002_000E;
 const PROCESS_CREATION_CHILD_PROCESS_RESTRICTED: u32 = 1;
 
-/// Name of the AppContainer; the SID is derived from it, no profile is created.
+/// Name of the AppContainer; its SID is derived from the name.
 const APPCONTAINER_NAME: &str = "Papyrine.Sandbox.Child";
 
 /// Integrity level of the restricted-token fallback (Untrusted).
@@ -95,14 +97,39 @@ impl Sid {
         Ok(Sid(p, SidAlloc::LocalAlloc))
     }
 
+    /// The container's SID. The profile is created on first use (CreateProcess
+    /// with an AppContainer token fails if it does not exist) and is per
+    /// user; `DeleteAppContainerProfile` removes it at uninstall.
     fn app_container() -> io::Result<Sid> {
+        const ERROR_ALREADY_EXISTS_HR: i32 = 0x8007_00B7_u32 as i32;
         let name = wide(OsStr::new(APPCONTAINER_NAME));
+        let display = wide(OsStr::new("Papyrine sandbox"));
+        let desc = wide(OsStr::new(
+            "Confinement for Papyrine engine and renderer helpers",
+        ));
         let mut p: *mut c_void = null_mut();
-        // SAFETY: valid name and out pointer.
-        let hr = unsafe { DeriveAppContainerSidFromAppContainerName(name.as_ptr(), &mut p) };
-        if hr < 0 {
+        // SAFETY: valid NUL-terminated strings, no capabilities, out pointer.
+        let hr = unsafe {
+            CreateAppContainerProfile(
+                name.as_ptr(),
+                display.as_ptr(),
+                desc.as_ptr(),
+                null(),
+                0,
+                &mut p,
+            )
+        };
+        if hr == ERROR_ALREADY_EXISTS_HR {
+            // SAFETY: valid name and out pointer.
+            let hr = unsafe { DeriveAppContainerSidFromAppContainerName(name.as_ptr(), &mut p) };
+            if hr < 0 {
+                return Err(io::Error::other(format!(
+                    "DeriveAppContainerSidFromAppContainerName: HRESULT {hr:#x}"
+                )));
+            }
+        } else if hr < 0 {
             return Err(io::Error::other(format!(
-                "DeriveAppContainerSidFromAppContainerName: HRESULT {hr:#x}"
+                "CreateAppContainerProfile: HRESULT {hr:#x}"
             )));
         }
         Ok(Sid(p, SidAlloc::FreeSid))
