@@ -35,6 +35,7 @@ const COMPUTED_KEYS: &[&[u8]] = &[
 enum Entry {
     InUse {
         offset: u64,
+        generation: u16,
     },
     /// `next` is the next free object in the free list (0 ends it).
     Free {
@@ -172,6 +173,16 @@ fn chain_free(entries: &mut BTreeMap<u32, Entry>) {
         .map(|(&n, _)| n)
         .collect();
     if free.is_empty() {
+        // A table needs at least one subsection, even for a section that changes nothing.
+        if entries.is_empty() {
+            entries.insert(
+                0,
+                Entry::Free {
+                    next: 0,
+                    generation: 65535,
+                },
+            );
+        }
         return;
     }
     for (i, &n) in free.iter().enumerate() {
@@ -195,8 +206,8 @@ fn table_bytes(entries: &BTreeMap<u32, Entry>) -> Vec<u8> {
         o.extend_from_slice(format!("{first} {}\n", list.len()).as_bytes());
         for e in list {
             match e {
-                Entry::InUse { offset } => {
-                    o.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes())
+                Entry::InUse { offset, generation } => {
+                    o.extend_from_slice(format!("{offset:010} {generation:05} n \n").as_bytes())
                 }
                 Entry::Free { next, generation } => {
                     o.extend_from_slice(format!("{next:010} {generation:05} f \n").as_bytes())
@@ -216,7 +227,7 @@ fn xref_stream_data(entries: &BTreeMap<u32, Entry>) -> Result<([usize; 3], Strin
     let max_off = entries
         .values()
         .filter_map(|e| match e {
-            Entry::InUse { offset } => Some(*offset),
+            Entry::InUse { offset, .. } => Some(*offset),
             _ => None,
         })
         .max()
@@ -239,10 +250,10 @@ fn xref_stream_data(entries: &BTreeMap<u32, Entry>) -> Result<([usize; 3], Strin
         index.push_str(&format!("{first} {} ", list.len()));
         for e in list {
             match e {
-                Entry::InUse { offset } => {
+                Entry::InUse { offset, generation } => {
                     raw.push(1);
                     raw.extend(be_bytes(offset, w2));
-                    raw.extend(be_bytes(0, 2));
+                    raw.extend(be_bytes(u64::from(generation), 2));
                 }
                 Entry::Free { next, generation } => {
                     raw.push(0);
@@ -282,7 +293,13 @@ fn write_xref<W: Write>(
             w.write_all(&t)?;
         }
         XrefKind::Stream => {
-            entries.insert(xref_stream_num, Entry::InUse { offset: at });
+            entries.insert(
+                xref_stream_num,
+                Entry::InUse {
+                    offset: at,
+                    generation: 0,
+                },
+            );
             let (widths, index, data) = xref_stream_data(&entries)?;
             let mut d = format!(
                 "{xref_stream_num} 0 obj\n<< /Type /XRef /Size {size} /W [{} {} {}] /Index [{index}] /Filter /FlateDecode /Length {}",
@@ -341,7 +358,13 @@ pub fn write_section(doc: &Document, prev: &ChainState, req: &SectionRequest) ->
         let obj = doc.object(*id)?;
         let offset = w.pos;
         write_indirect(&mut w, *id, &obj, crypto.as_ref())?;
-        entries.insert(id.num, Entry::InUse { offset });
+        entries.insert(
+            id.num,
+            Entry::InUse {
+                offset,
+                generation: id.generation,
+            },
+        );
         objects.push((*id, offset));
     }
     for f in &freed {
@@ -457,7 +480,13 @@ pub fn write_full<W: Write>(
         }
         let offset = w.pos;
         write_indirect(&mut w, id, &obj, crypto.as_ref())?;
-        entries.insert(id.num, Entry::InUse { offset });
+        entries.insert(
+            id.num,
+            Entry::InUse {
+                offset,
+                generation: id.generation,
+            },
+        );
         last_num = last_num.max(id.num);
         count += 1;
     }
