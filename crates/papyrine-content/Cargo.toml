@@ -5,8 +5,17 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "PDF content-stream lexer, parser and serializer"
 
 [dependencies]
+papyrine-core = { path = "../papyrine-core" }
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+[[bench]]
+name = "parse_throughput"
+harness = false
 
 [lints]
 workspace = true

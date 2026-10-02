@@ -1,0 +1,23 @@
+[package]
+name = "papyrine-content-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+papyrine-content = { path = "../../crates/papyrine-content" }
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+# Not a member of the main workspace (nightly-only, own lockfile).
+[workspace]
