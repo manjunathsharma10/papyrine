@@ -112,6 +112,7 @@ pub fn page_objects(b: &Built, i: usize, spec: &PageSpec) -> Vec<(u32, Vec<u8>)>
 }
 
 /// Builds a chain of incremental-update sections that append to a base file.
+#[derive(Clone)]
 pub struct Chain {
     pub total_len: usize,
     pub startxref: usize,
