@@ -1,0 +1,120 @@
+# Pinned native sources (ARCHITECTURE section 12). Fetched by third_party/fetch,
+# SHA-256 verified, extracted to third_party/cache/src/<name>-<version>/.
+# license_files are relative to the extracted source directory.
+
+[[library]]
+name = "qpdf"
+version = "12.4.2"
+url = "https://github.com/qpdf/qpdf/releases/download/v12.4.2/qpdf-12.4.2.tar.gz"
+sha256 = "8a58af5b6141319287c1883bec8bd1bd545b7567b7fc5e6ce5d25a1c85f36397"
+spdx = "Apache-2.0"
+license_files = ["LICENSE.txt", "NOTICE.md"]
+# Built with native crypto only (ADR-021); see crates/qpdf-sys/build.rs.
+
+[[library]]
+name = "zlib"
+version = "1.3.2"
+url = "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz"
+sha256 = "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16"
+spdx = "Zlib"
+license_files = ["LICENSE"]
+
+[[library]]
+name = "libjpeg-turbo"
+version = "3.2.0"
+url = "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.0/libjpeg-turbo-3.2.0.tar.gz"
+sha256 = "6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e"
+spdx = "IJG AND BSD-3-Clause AND Zlib"
+license_files = ["LICENSE.md", "README.ijg"]
+# Built with WITH_SIMD=OFF in qpdf-sys (qpdf only decodes/encodes DCT for
+# image optimisation, not on a hot path); the PDFium copy is separate.
+
+# PDFium: prebuilt shared library from bblanchon/pdfium-binaries (no V8, no XFA),
+# fetched by tools/fetch-pdfium into third_party/cache/pdfium/<platform>/ with the
+# per-platform archive SHA-256 pinned in that script (release chromium/8076,
+# https://github.com/bblanchon/pdfium-binaries); hence no url/sha256 here.
+# Licence texts are copied to third_party/cache/pdfium/{LICENSE,licenses/} by the script.
+[[library]]
+name = "pdfium"
+version = "156.0.8076.0"
+spdx = "BSD-3-Clause AND MIT"
+dir = "cache/pdfium"
+license_files = ["licenses/pdfium.txt", "LICENSE"]
+provides = ["libpdfium*", "pdfium.dll*"]
+# LICENSE (MIT) is the binaries' packaging licence; licenses/pdfium.txt is PDFium itself.
+
+# Third-party code statically linked inside libpdfium (licenses/ in the archive).
+[[library]]
+name = "pdfium-abseil"
+parent = "pdfium"
+spdx = "Apache-2.0"
+license_files = ["licenses/abseil.txt"]
+
+[[library]]
+name = "pdfium-agg23"
+parent = "pdfium"
+# Anti-Grain Geometry 2.3: permissive ("use, copy, modify, sell and distribute ...
+# provided this copyright notice appears"), no SPDX identifier exists. Needs a
+# licence-gate allowance (proposed ADR).
+spdx = "LicenseRef-AGG-2.3"
+license_files = ["licenses/agg23.txt"]
+
+[[library]]
+name = "pdfium-fast-float"
+parent = "pdfium"
+spdx = "MIT"
+license_files = ["licenses/fast_float.txt"]
+
+[[library]]
+name = "pdfium-freetype"
+parent = "pdfium"
+spdx = "FTL"
+license_files = ["licenses/freetype.txt"]
+
+[[library]]
+name = "pdfium-icu"
+parent = "pdfium"
+spdx = "Unicode-3.0"
+license_files = ["licenses/icu.txt"]
+
+[[library]]
+name = "pdfium-lcms"
+parent = "pdfium"
+spdx = "MIT"
+license_files = ["licenses/lcms.txt"]
+
+[[library]]
+name = "pdfium-libjpeg-turbo"
+parent = "pdfium"
+spdx = "IJG AND BSD-3-Clause AND Zlib"
+license_files = ["licenses/libjpeg_turbo.md", "licenses/libjpeg_turbo.ijg"]
+
+[[library]]
+name = "pdfium-openjpeg"
+parent = "pdfium"
+spdx = "BSD-2-Clause"
+license_files = ["licenses/libopenjpeg.txt"]
+
+[[library]]
+name = "pdfium-libpng"
+parent = "pdfium"
+spdx = "libpng-2.0"
+license_files = ["licenses/libpng.txt"]
+
+[[library]]
+name = "pdfium-llvm-libc"
+parent = "pdfium"
+spdx = "Apache-2.0 WITH LLVM-exception"
+license_files = ["licenses/llvm-libc.txt"]
+
+[[library]]
+name = "pdfium-simdutf"
+parent = "pdfium"
+spdx = "MIT"
+license_files = ["licenses/simdutf.txt"]
+
+[[library]]
+name = "pdfium-zlib"
+parent = "pdfium"
+spdx = "Zlib"
+license_files = ["licenses/zlib.txt"]
