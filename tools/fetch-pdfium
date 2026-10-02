@@ -3,9 +3,10 @@
 
 Usage: tools/fetch-pdfium [--platform mac-arm64|mac-x64|linux-x64|win-x64|win-arm64]
 Output: third_party/cache/pdfium/<platform>/{lib,bin,include,LICENSE,...}
+        plus third_party/cache/pdfium/{LICENSE,licenses/} (platform independent)
 The archive SHA-256 is pinned below and verified before extraction.
 """
-import argparse, hashlib, io, os, platform, sys, tarfile, urllib.request
+import argparse, hashlib, io, os, platform, shutil, sys, tarfile, urllib.request
 
 TAG = "chromium/8076"
 BASE = "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8076/"
@@ -70,6 +71,16 @@ def main():
             if not p.startswith(os.path.realpath(dest) + os.sep) and p != os.path.realpath(dest):
                 sys.exit(f"unsafe path in archive: {m.name}")
         t.extractall(dest)
+    # Licences are identical across platforms; expose them at a platform-independent
+    # path for the licence gate (third_party/native.toml, parent = "pdfium").
+    common = os.path.dirname(dest)
+    lic_src = os.path.join(dest, "licenses")
+    if os.path.isdir(lic_src):
+        os.makedirs(os.path.join(common, "licenses"), exist_ok=True)
+        for n in os.listdir(lic_src):
+            shutil.copyfile(os.path.join(lic_src, n), os.path.join(common, "licenses", n))
+    if os.path.isfile(os.path.join(dest, "LICENSE")):
+        shutil.copyfile(os.path.join(dest, "LICENSE"), os.path.join(common, "LICENSE"))
     with open(stamp, "w") as f:
         f.write(PINS[plat] + "\n")
     print(f"extracted to {dest}")
