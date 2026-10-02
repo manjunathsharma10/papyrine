@@ -27,6 +27,9 @@ pub const ALLOWED: &[&str] = &[
 /// Accepted only for entries marked `kind = "font"`.
 pub const ALLOWED_FONT_ONLY: &[&str] = &["OFL-1.1"];
 
+/// Accepted only in `third_party/native.toml` (permissive licences without an SPDX id).
+pub const ALLOWED_NATIVE_ONLY: &[&str] = &["LicenseRef-AGG-2.3"];
+
 /// Exceptions that may accompany an allowed licence.
 pub const ALLOWED_EXCEPTIONS: &[&str] = &["LLVM-exception"];
 
@@ -187,6 +190,12 @@ mod tests {
         ));
         assert!(!glob_match("libgs.*", "libgsf.so"));
         assert!(glob_match("kernel32.dll", "KERNEL32.DLL"));
+    }
+
+    #[test]
+    fn agg_only_in_native_manifest() {
+        assert!(spdx::check("LicenseRef-AGG-2.3", false).is_err());
+        assert!(spdx::check_native("LicenseRef-AGG-2.3", false).is_ok());
     }
 
     #[test]

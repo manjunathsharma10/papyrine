@@ -3,7 +3,7 @@
 //! `A OR B` is acceptable when either side is; `A AND B` when both are;
 //! `A WITH X` when `A` is allowed and `X` is an allowed exception.
 
-use crate::{ALLOWED, ALLOWED_EXCEPTIONS, ALLOWED_FONT_ONLY};
+use crate::{ALLOWED, ALLOWED_EXCEPTIONS, ALLOWED_FONT_ONLY, ALLOWED_NATIVE_ONLY};
 
 #[derive(Debug)]
 enum Expr {
@@ -108,34 +108,37 @@ impl Parser {
     }
 }
 
-fn id_allowed(id: &str, font: bool) -> Result<(), String> {
+fn id_allowed(id: &str, font: bool, native: bool) -> Result<(), String> {
     let lower = id.to_ascii_lowercase();
     if lower.contains("gpl") {
         return Err(format!("{id} is a banned copyleft licence"));
     }
-    if ALLOWED.contains(&id) || (font && ALLOWED_FONT_ONLY.contains(&id)) {
+    if ALLOWED.contains(&id)
+        || (font && ALLOWED_FONT_ONLY.contains(&id))
+        || (native && ALLOWED_NATIVE_ONLY.contains(&id))
+    {
         Ok(())
     } else {
         Err(format!("{id} is not on the licence allowlist"))
     }
 }
 
-fn eval(e: &Expr, font: bool) -> Result<(), String> {
+fn eval(e: &Expr, font: bool, native: bool) -> Result<(), String> {
     match e {
-        Expr::Id(id) => id_allowed(id, font),
+        Expr::Id(id) => id_allowed(id, font, native),
         Expr::With(id, ex) => {
-            id_allowed(id, font)?;
+            id_allowed(id, font, native)?;
             if ALLOWED_EXCEPTIONS.contains(&ex.as_str()) {
                 Ok(())
             } else {
                 Err(format!("exception {ex} is not allowed"))
             }
         }
-        Expr::And(v) => v.iter().try_for_each(|x| eval(x, font)),
+        Expr::And(v) => v.iter().try_for_each(|x| eval(x, font, native)),
         Expr::Or(v) => {
             let mut errs = Vec::new();
             for x in v {
-                match eval(x, font) {
+                match eval(x, font, native) {
                     Ok(()) => return Ok(()),
                     Err(e) => errs.push(e),
                 }
@@ -147,6 +150,16 @@ fn eval(e: &Expr, font: bool) -> Result<(), String> {
 
 /// Checks an SPDX expression; `font` additionally permits OFL-1.1.
 pub fn check(expr: &str, font: bool) -> Result<(), String> {
+    check_with(expr, font, false)
+}
+
+/// Like [`check`] for entries of `third_party/native.toml`, which may also use the
+/// native-only references (AGG 2.3, a permissive licence without an SPDX id).
+pub fn check_native(expr: &str, font: bool) -> Result<(), String> {
+    check_with(expr, font, true)
+}
+
+fn check_with(expr: &str, font: bool, native: bool) -> Result<(), String> {
     let toks = tokenize(expr.trim());
     if toks.is_empty() {
         return Err("empty licence expression".into());
@@ -158,7 +171,7 @@ pub fn check(expr: &str, font: bool) -> Result<(), String> {
     if p.pos != p.toks.len() {
         return Err(format!("invalid SPDX expression '{expr}': trailing tokens"));
     }
-    eval(&e, font)
+    eval(&e, font, native)
 }
 
 #[cfg(test)]

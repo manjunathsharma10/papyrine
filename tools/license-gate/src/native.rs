@@ -178,7 +178,7 @@ pub fn check(root: &Path, require_fetched: bool, report: &mut Report) {
         if lib.version.trim().is_empty() && lib.parent.is_none() {
             report.fail(format!("{who} has no version"));
         }
-        if let Err(e) = spdx::check(&lib.spdx, lib.is_font()) {
+        if let Err(e) = spdx::check_native(&lib.spdx, lib.is_font()) {
             report.fail(format!("{who}: {e}"));
         }
         if let Some(p) = &lib.parent
