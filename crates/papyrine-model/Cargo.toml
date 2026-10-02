@@ -5,8 +5,15 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "Typed, lazily materialized read-side views over the COS layer: pages, outlines, forms, annotations, metadata"
 
 [dependencies]
+papyrine-core = { path = "../papyrine-core" }
+papyrine-cos = { path = "../papyrine-cos" }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [lints]
 workspace = true
