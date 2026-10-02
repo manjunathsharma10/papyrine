@@ -64,31 +64,29 @@ jobs:
       - name: Measure (macOS, Windows)
         if: runner.os != 'Linux'
         shell: bash
+        env:
+          MEASURE_DEBUG: "1"
         run: |
           node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
             --bundle-dir target/release/bundle --dist apps/desktop/dist \
             --runs 10 --idle-secs 10 --json measure.json | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Linux env variants (what makes WebKitGTK slow/heavy under Xvfb)
+      - name: Linux env variants (what makes WebKitGTK heavy under Xvfb)
         if: runner.os == 'Linux'
         continue-on-error: true
         run: |
           run() { echo "### variant: $1" | tee -a "$GITHUB_STEP_SUMMARY"; shift
-            env "$@" xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
+            env "$@" dbus-run-session -- xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
               --dist apps/desktop/dist --runs 3 --idle-runs 2 --idle-secs 10 2>&1 | grep -E "launch ->|idle memory|  - " | tee -a "$GITHUB_STEP_SUMMARY"; }
           run default A=1
-          run no-a11y-bridge NO_AT_BRIDGE=1
-          run no-a11y+no-dmabuf NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
-          run no-a11y+no-compositing NO_AT_BRIDGE=1 WEBKIT_DISABLE_COMPOSITING_MODE=1
-          run no-a11y+software-gl NO_AT_BRIDGE=1 LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1
-          echo "### variant: dbus-run-session + no-a11y" | tee -a "$GITHUB_STEP_SUMMARY"
-          NO_AT_BRIDGE=1 dbus-run-session -- xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
-            --dist apps/desktop/dist --runs 3 --idle-runs 2 2>&1 | grep -E "launch ->|idle memory|  - " | tee -a "$GITHUB_STEP_SUMMARY"
+          run no-dmabuf WEBKIT_DISABLE_DMABUF_RENDERER=1
+          run no-dmabuf+no-compositing WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1
+          run no-dmabuf+software-gl WEBKIT_DISABLE_DMABUF_RENDERER=1 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 
-      - name: Measure (Linux, under Xvfb)
+      - name: Measure (Linux, under Xvfb with a session bus)
         if: runner.os == 'Linux'
         run: |
-          xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
+          dbus-run-session -- xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
             --bundle-dir target/release/bundle --dist apps/desktop/dist \
             --runs 10 --idle-secs 10 --json measure.json | tee -a "$GITHUB_STEP_SUMMARY"
 

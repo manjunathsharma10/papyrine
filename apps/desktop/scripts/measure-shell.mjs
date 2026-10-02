@@ -80,7 +80,9 @@ function macResponsible(pids) {
   return new Map(pids.map((p, i) => [p, Number(out[i])]));
 }
 
-function appPids(rootPid) {
+const macWebKitPids = () => new Set(psTable().filter((p) => WK.test(p.cmd)).map((p) => p.pid));
+
+function appPids(rootPid, baseline = new Set()) {
   const table = psTable();
   const tree = new Set([rootPid]);
   for (let grew = true; grew; ) {
@@ -89,7 +91,14 @@ function appPids(rootPid) {
   }
   if (platform === "darwin") {
     const cand = table.filter((p) => WK.test(p.cmd)).map((p) => p.pid);
-    for (const [pid, resp] of macResponsible(cand)) if (resp === rootPid) tree.add(pid);
+    const resp = macResponsible(cand);
+    for (const [pid, r] of resp) if (r === rootPid) tree.add(pid);
+    if (process.env.MEASURE_DEBUG) console.error("responsible", Object.fromEntries(resp), "root", rootPid);
+    // Fallback (e.g. CI runners where responsibility is not per-app): helpers that appeared after launch.
+    if (tree.size === 1) {
+      for (const pid of cand) if (!baseline.has(pid)) tree.add(pid);
+      fallbackAttribution++;
+    }
   }
   return [...tree];
 }
@@ -159,10 +168,12 @@ function startApp(bin) {
     const log = join(mkdtempSync(join(tmpdir(), "papyrine-trace-")), "stdout.log");
     writeFileSync(log, "");
     const before = new Set(psTable().filter((p) => p.cmd.startsWith(bin)).map((p) => p.pid));
+    const baseline = macWebKitPids();
     const t0 = Date.now();
     execFileSync("open", ["-n", "--env", "PAPYRINE_TRACE=1", "--stdout", log, appDir]);
     return {
       t0,
+      baseline,
       read: () => readFileSync(log, "utf8"),
       pid: () => psTable().find((p) => p.cmd.startsWith(bin) && !before.has(p.pid))?.pid,
       kill: (pid) => {
@@ -178,11 +189,12 @@ function startApp(bin) {
   const child = spawn(bin, [], { env: { ...process.env, PAPYRINE_TRACE: "1" }, stdio: ["ignore", "pipe", "ignore"] });
   let buf = "";
   child.stdout.on("data", (d) => (buf += d));
-  return { t0, read: () => buf, pid: () => child.pid, kill: () => killTree(child) };
+  return { t0, baseline: new Set(), read: () => buf, pid: () => child.pid, kill: () => killTree(child) };
 }
 
 let retries = 0;
 let occludedFallbacks = 0;
+let fallbackAttribution = 0;
 /** Retry a launch that never reported a paint (observed rarely when the window is occluded); counted in the output. */
 async function launchOnce(bin, opts) {
   for (let attempt = 0; ; attempt++) {
@@ -219,7 +231,7 @@ async function launchAttempt(bin, { idle }) {
     const res = { launchMs: tPaint - app.t0, execToMainMs: mainStart - app.t0, mainToPaintMs: tPaint - mainStart };
     if (idle) {
       await sleep(idleSecs * 1000);
-      const pids = appPids(app.pid());
+      const pids = appPids(app.pid(), app.baseline);
       if (process.env.MEASURE_DEBUG) console.error("pids", pids);
       res.memory = memoryBytes(pids);
     }
@@ -284,6 +296,7 @@ async function main() {
 
   result.launchRetries = retries;
   result.occludedFallbacks = occludedFallbacks;
+  result.helperAttributionByDelta = fallbackAttribution;
   if (args.json) writeFileSync(String(args.json), JSON.stringify(result, null, 2));
   console.log(summary(result));
 }
@@ -300,6 +313,7 @@ function summary(r) {
   }
   if (r.launchRetries) L.push(`- launch retries after a missed paint event: ${r.launchRetries}`);
   if (r.occludedFallbacks) L.push(`- runs where no animation frame arrived (window occluded) and the 'drawn' stamp was used: ${r.occludedFallbacks}`);
+  if (r.helperAttributionByDelta) L.push(`- WebKit helpers attributed by 'new since launch' (responsibility API gave none) in ${r.helperAttributionByDelta} idle runs; may include unrelated WebKit processes started meanwhile`);
   if (r.idle) {
     L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes: median ${(r.idle.medianBytes / MB).toFixed(1)} MB (runs: ${r.idle.totalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
     for (const [k, v] of Object.entries(r.idle.breakdownLastRun)) L.push(`  - ${k}: ${(v / MB).toFixed(1)} MB`);
