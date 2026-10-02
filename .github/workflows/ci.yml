@@ -31,7 +31,7 @@ jobs:
       desktop: ${{ steps.d.outputs.desktop }}
       tauri: ${{ steps.d.outputs.tauri }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: d
         run: |
           [ -f apps/desktop/package.json ] && echo desktop=true >> "$GITHUB_OUTPUT" || echo desktop=false >> "$GITHUB_OUTPUT"
@@ -41,7 +41,7 @@ jobs:
     name: fmt
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Rust toolchain
         run: rustup toolchain install --profile minimal && rustup show active-toolchain
       - run: cargo fmt --all --check
@@ -65,7 +65,7 @@ jobs:
       - name: Keep LF line endings
         if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -112,7 +112,7 @@ jobs:
     name: gates (licenses, notices, corpus, selftest)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -175,7 +175,7 @@ jobs:
     needs: [detect]
     if: needs.detect.outputs.desktop == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -215,7 +215,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
