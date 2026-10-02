@@ -135,7 +135,7 @@ jobs:
       - run: cargo audit
       - uses: pnpm/action-setup@v4
         if: hashFiles('apps/desktop/package.json') != ''
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: hashFiles('apps/desktop/package.json') != ''
         with:
           node-version: 24
