@@ -20,3 +20,8 @@ dist/
 *.pfx
 *.key
 *.pem
+
+# Downloaded native sources and prebuilt binaries (pinned by hash in third_party/native.toml)
+/third_party/cache/
+/spikes/*/target/
+!/corpus/*.toml
