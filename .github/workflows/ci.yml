@@ -1,0 +1,266 @@
+name: CI
+
+# ARCHITECTURE section 10. Checks (fmt, clippy, tests) on the five-platform matrix, the
+# licence/notice/corpus/budget gates, and bundle inspection. Steps that depend on parts of
+# the repo that may not exist yet (apps/desktop, fetch scripts, qpdf build) skip themselves.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - run: cargo fmt --all --check
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-15, pdfium: mac-arm64 }
+          - { name: macos-x64, os: macos-15-intel, pdfium: mac-x64 }
+          - { name: windows-x64, os: windows-latest, pdfium: win-x64 }
+          - { name: windows-arm64, os: windows-11-arm, pdfium: win-arm64 }
+          - { name: linux-x64, os: ubuntu-24.04, pdfium: linux-x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libxdo-dev patchelf cmake ninja-build
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+      - name: Native sources and test corpus cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/cache
+            corpus/cache
+          key: native-${{ matrix.name }}-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium', 'corpus/manifest.toml') }}
+          restore-keys: native-${{ matrix.name }}-
+      - name: Fetch pinned native sources
+        run: |
+          if [ -f third_party/fetch ]; then python third_party/fetch; else echo "third_party/fetch not present yet"; fi
+      - name: Fetch PDFium
+        run: |
+          if [ -f tools/fetch-pdfium ]; then python tools/fetch-pdfium --platform ${{ matrix.pdfium }}; else echo "tools/fetch-pdfium not present yet"; fi
+      - name: clippy (-D warnings)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: test
+        run: cargo test --workspace --locked
+      - name: qpdf crypto configuration gate
+        run: |
+          flag=""
+          if ls -d third_party/cache/src/qpdf-* >/dev/null 2>&1 && [ -f crates/qpdf-sys/build.rs ]; then flag="--require"; fi
+          cargo run -q -p license-gate --locked -- qpdf --build-dir target $flag
+
+  gates:
+    name: gates (licenses, notices, corpus, selftest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gates
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - uses: pnpm/action-setup@v4
+        if: hashFiles('apps/desktop/package.json') != ''
+      - uses: actions/setup-node@v4
+        if: hashFiles('apps/desktop/package.json') != ''
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install JS dependencies
+        if: hashFiles('apps/desktop/package.json') != ''
+        run: pnpm install --frozen-lockfile
+      - name: Native sources cache
+        uses: actions/cache@v4
+        with:
+          path: third_party/cache
+          key: native-gates-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
+          restore-keys: native-gates-
+      - name: Fetch native sources and PDFium licences
+        run: |
+          [ -f third_party/fetch ] && python third_party/fetch || echo "third_party/fetch not present yet"
+          [ -f tools/fetch-pdfium ] && python tools/fetch-pdfium --platform linux-x64 || echo "tools/fetch-pdfium not present yet"
+      - name: Build gate tools
+        run: cargo build -q --locked -p license-gate -p gen-notices -p inspect-bundle -p check-budgets -p gates-selftest
+      - name: Gate - shipped Rust licences and bans (cargo-deny)
+        run: cargo deny check licenses bans sources
+      - name: Gate - advisories (informational here, blocking nightly)
+        continue-on-error: true
+        run: cargo deny check advisories
+      - name: Gate - shipped JS and native manifest
+        run: |
+          target/debug/license-gate js
+          target/debug/license-gate native --require-fetched
+      - name: Gate - notices are fresh
+        run: target/debug/gen-notices --check
+      - name: Gate - no corpus, keys or blobs in the repo
+        run: |
+          if [ -f tools/check-no-corpus ]; then python tools/check-no-corpus; else echo "tools/check-no-corpus not present yet"; fi
+      - name: Gate self-test (deliberate violations must fail)
+        run: target/debug/gates-selftest --require-all
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-24.04
+    if: ${{ hashFiles('apps/desktop/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck, lint, format, unit tests, build
+        run: |
+          for s in typecheck lint format:check test build; do
+            pnpm --filter papyrine-desktop run --if-present "$s"
+          done
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: frontend
+      - name: Initial JS bundle budget
+        run: cargo run -q --locked -p check-budgets -- --platform linux --js-dist apps/desktop/dist
+
+  bundle:
+    name: bundle (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    if: ${{ hashFiles('apps/desktop/src-tauri/tauri.conf.json') != '' }}
+    needs: [test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-15, platform: macos, pdfium: mac-arm64, bundles: "dmg" }
+          - { name: macos-x64, os: macos-15-intel, platform: macos, pdfium: mac-x64, bundles: "dmg" }
+          - { name: windows-x64, os: windows-latest, platform: windows, pdfium: win-x64, bundles: "msi,nsis" }
+          - { name: windows-arm64, os: windows-11-arm, platform: windows, pdfium: win-arm64, bundles: "msi,nsis" }
+          - { name: linux-x64, os: ubuntu-24.04, platform: linux, pdfium: linux-x64, bundles: "deb,rpm,appimage" }
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libxdo-dev patchelf rpm libfuse2 cmake ninja-build
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bundle-${{ matrix.name }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Native sources cache
+        uses: actions/cache@v4
+        with:
+          path: third_party/cache
+          key: native-${{ matrix.name }}-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
+          restore-keys: native-${{ matrix.name }}-
+      - name: Fetch native sources
+        run: |
+          [ -f third_party/fetch ] && python third_party/fetch || true
+          [ -f tools/fetch-pdfium ] && python tools/fetch-pdfium --platform ${{ matrix.pdfium }} || true
+      - name: Build gate tools
+        run: cargo build -q --locked -p inspect-bundle -p check-budgets
+      - name: Build installers
+        run: pnpm --filter papyrine-desktop tauri build --bundles ${{ matrix.bundles }}
+      - name: Collect artifacts
+        id: collect
+        run: |
+          mkdir -p out
+          find target/release/bundle apps/desktop/src-tauri/target/release/bundle -type f \
+            \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+            -exec cp {} out/ \; 2>/dev/null || true
+          ls -l out
+          [ -n "$(ls -A out)" ] || { echo "::error::no installers were produced"; exit 1; }
+      - name: Gate - bundle inspection
+        run: |
+          for f in out/*; do target/debug/inspect-bundle "$f"; done
+      - name: Fetch main baseline sizes
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          id=$(gh run list --workflow ci.yml --branch main --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          [ -n "$id" ] && gh run download "$id" -n "sizes-${{ matrix.name }}" -D baseline || echo "no baseline yet"
+      - name: Gate - budgets (installer size, 5% growth, JS bundle)
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          args=(--platform ${{ matrix.platform }} --js-dist apps/desktop/dist --write-sizes sizes.json)
+          for f in out/*; do args+=(--installer "$f"); done
+          [ -f baseline/sizes.json ] && args+=(--baseline baseline/sizes.json)
+          target/debug/check-budgets "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sizes-${{ matrix.name }}
+          path: sizes.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: installers-${{ matrix.name }}
+          path: out/
+          retention-days: 7

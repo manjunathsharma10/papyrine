@@ -1,0 +1,11 @@
+# Subsystems allowed to initialize before first paint (ARCHITECTURE section 1.1, 9.5).
+# One entry per line: a subsystem name with or without the `subsystem.` prefix;
+# `name.*` allows a family; `*` globs are accepted. Adding a line needs a reviewer's
+# sign-off: every entry costs cold-launch time.
+window
+webview
+ui
+ipc
+shell
+engine.spawn
+renderer.spawn

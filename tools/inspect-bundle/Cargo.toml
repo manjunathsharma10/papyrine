@@ -1,0 +1,16 @@
+[package]
+name = "inspect-bundle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Bundle inspection gate: files, linked libraries and symbol prefixes of a built artifact"
+
+[dependencies]
+goblin = "0.10"
+license-gate = { path = "../license-gate" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[lints]
+workspace = true

@@ -1,0 +1,50 @@
+# System-library allowlist and banned names for tools/inspect-bundle.
+# Patterns are case-insensitive globs with `*`. Libraries shipped from third_party/native.toml
+# (`provides`) are allowed automatically.
+
+# Banned anywhere: file names inside the artifact and linked library names (ARCHITECTURE section 12).
+banned = [
+  "libpoppler*", "*poppler*", "libmupdf*", "*mupdf*", "libgs.*", "libgs-*", "libgs_*", "libgsl*",
+  "gsdll*", "*ghostscript*", "libjbig2dec*", "*jbig2dec*", "libheif*", "libgnutls*", "*gnutls*",
+  "libssl*", "libcrypto*", "ssleay32*", "libeay32*", "libnettle*", "libhogweed*",
+]
+# Symbol prefixes that reveal static linking of GnuTLS/OpenSSL (a leading '_' is ignored).
+banned_symbol_prefixes = ["gnutls_", "SSL_", "EVP_"]
+
+# Bundled libraries built from this repository.
+first_party = ["libpapyrine*", "papyrine*"]
+
+# Banned-name waivers (empty by default). Add a pattern only together with an ADR.
+banned_waivers = []
+
+[macos]
+system_prefixes = ["/usr/lib/", "/System/Library/"]
+
+[linux]
+# Libraries expected from the distribution (deb/rpm/Flatpak) or the AppImage's WebKitGTK stack.
+system = [
+  "ld-linux*", "ld64.so*", "linux-vdso*", "libc.so*", "libm.so*", "libdl.so*", "libpthread.so*",
+  "librt.so*", "libutil.so*", "libresolv.so*", "libgcc_s.so*", "libstdc++.so*", "libz.so*",
+  "libwebkit2gtk-4.1.so*", "libjavascriptcoregtk-4.1.so*", "libsoup-3.0.so*",
+  "libgtk-3.so*", "libgdk-3.so*", "libgdk_pixbuf-2.0.so*", "libgio-2.0.so*", "libglib-2.0.so*",
+  "libgobject-2.0.so*", "libgmodule-2.0.so*", "libcairo*.so*", "libpango*.so*", "libatk-1.0.so*",
+  "libatk-bridge-2.0.so*", "libharfbuzz*.so*", "libfontconfig.so*", "libfreetype.so*",
+  "libX11*.so*", "libxcb*.so*", "libxkbcommon*.so*", "libwayland-*.so*", "libdbus-1.so*",
+  "libayatana-appindicator3.so*", "libappindicator3.so*", "libxdo.so*", "libEGL.so*", "libGL.so*",
+  "libGLESv2.so*", "libgmp.so*",
+]
+
+[windows]
+system = [
+  "kernel32.dll", "kernelbase.dll", "user32.dll", "gdi32.dll", "gdi32full.dll", "advapi32.dll",
+  "shell32.dll", "ole32.dll", "oleaut32.dll", "comctl32.dll", "comdlg32.dll", "shlwapi.dll",
+  "ws2_32.dll", "ntdll.dll", "bcrypt.dll", "bcryptprimitives.dll", "crypt32.dll", "secur32.dll",
+  "userenv.dll", "dwmapi.dll", "uxtheme.dll", "version.dll", "winmm.dll", "imm32.dll",
+  "setupapi.dll", "cfgmgr32.dll", "propsys.dll", "combase.dll", "rpcrt4.dll", "dbghelp.dll",
+  "netapi32.dll", "d3d11.dll", "dxgi.dll", "dcomp.dll", "d3dcompiler_47.dll", "msvcrt.dll",
+  "ucrtbase.dll", "vcruntime140*.dll", "msvcp140*.dll", "concrt140.dll", "wintrust.dll",
+  "ncrypt.dll", "winhttp.dll", "iphlpapi.dll", "mswsock.dll", "dnsapi.dll", "normaliz.dll",
+  "wldap32.dll", "oleacc.dll", "msimg32.dll", "opengl32.dll", "api-ms-win-*", "ext-ms-*",
+  "webview2loader.dll", "winspool.drv", "wtsapi32.dll", "powrprof.dll", "ntmarta.dll",
+  "mfplat.dll", "avrt.dll", "dwrite.dll", "d2d1.dll", "windowscodecs.dll", "coremessaging.dll",
+]
