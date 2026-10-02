@@ -105,6 +105,7 @@ function appPids(rootPid, baseline = new Set()) {
 
 function memoryBytes(pids) {
   const per = {};
+  const pssSplit = {};
   if (platform === "darwin") {
     const dir = mkdtempSync(join(tmpdir(), "fp-"));
     for (const pid of pids) {
@@ -124,7 +125,10 @@ function memoryBytes(pids) {
         const t = readFileSync(`/proc/${pid}/smaps_rollup`, "utf8");
         const kb = Number(t.match(/^Pss:\s+(\d+) kB/m)?.[1] ?? 0);
         const name = readFileSync(`/proc/${pid}/comm`, "utf8").trim();
+        const anon = Number(t.match(/^Pss_Anon:\s+(\d+) kB/m)?.[1] ?? 0);
+        const file = Number(t.match(/^Pss_File:\s+(\d+) kB/m)?.[1] ?? 0);
         per[`${name}[${pid}]`] = kb * 1024;
+        pssSplit[name] = `anon ${(anon / 1024).toFixed(1)} MB, file-backed ${(file / 1024).toFixed(1)} MB`;
       } catch {
         /* exited */
       }
@@ -142,7 +146,7 @@ function memoryBytes(pids) {
     }
   }
   const total = Object.values(per).reduce((a, b) => a + b, 0);
-  return { total, per };
+  return { total, per, pssSplit };
 }
 
 // ---- launching ------------------------------------------------------------------
@@ -291,7 +295,7 @@ async function main() {
     };
     const idleRuns = [];
     for (let i = 0; i < Number(args["idle-runs"] ?? 3); i++) idleRuns.push((await launchOnce(bin, { idle: true })).memory);
-    if (idleRuns.length) result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), breakdownLastRun: idleRuns.at(-1).per };
+    if (idleRuns.length) result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), breakdownLastRun: idleRuns.at(-1).per, pssSplitLastRun: idleRuns.at(-1).pssSplit };
   }
 
   result.launchRetries = retries;
@@ -316,6 +320,7 @@ function summary(r) {
   if (r.helperAttributionByDelta) L.push(`- WebKit helpers attributed by 'new since launch' (responsibility API gave none) in ${r.helperAttributionByDelta} idle runs; may include unrelated WebKit processes started meanwhile`);
   if (r.idle) {
     L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes: median ${(r.idle.medianBytes / MB).toFixed(1)} MB (runs: ${r.idle.totalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
+    for (const [k, v] of Object.entries(r.idle.pssSplitLastRun ?? {})) L.push(`  - PSS split ${k}: ${v}`);
     for (const [k, v] of Object.entries(r.idle.breakdownLastRun)) L.push(`  - ${k}: ${(v / MB).toFixed(1)} MB`);
   }
   return L.join("\n");
