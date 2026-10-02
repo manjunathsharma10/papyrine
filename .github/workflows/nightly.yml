@@ -27,28 +27,22 @@ jobs:
       any: ${{ steps.find.outputs.any }}
     steps:
       - uses: actions/checkout@v4
-      - name: Rust nightly (cargo-fuzz needs it)
-        run: rustup toolchain install nightly --profile minimal
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-fuzz
       - id: find
         shell: bash
         run: |
-          # A fuzz project is any dir with a Cargo.toml under fuzz/*/ or crates/*/fuzz/.
-          items=()
-          for d in fuzz/*/ crates/*/fuzz/; do
-            [ -f "${d}Cargo.toml" ] || continue
-            targets=$(cd "$d" && cargo +nightly fuzz list 2>/dev/null || true)
-            for t in $targets; do items+=("{\"dir\":\"${d%/}\",\"target\":\"$t\"}"); done
-          done
-          if [ ${#items[@]} -eq 0 ]; then
-            echo 'any=false' >> "$GITHUB_OUTPUT"
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'any=true' >> "$GITHUB_OUTPUT"
-            echo "matrix={\"include\":[$(IFS=,; echo "${items[*]}")]}" >> "$GITHUB_OUTPUT"
-          fi
+          # A fuzz project is any dir with a Cargo.toml under fuzz/*/ or crates/*/fuzz/; its
+          # targets are the [[bin]] entries.
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import glob, json, tomllib
+          items = []
+          for toml in sorted(glob.glob("fuzz/*/Cargo.toml") + glob.glob("crates/*/fuzz/Cargo.toml")):
+              d = toml.rsplit("/", 1)[0]
+              with open(toml, "rb") as f:
+                  for b in tomllib.load(f).get("bin", []):
+                      items.append({"dir": d, "target": b["name"]})
+          print("any=" + ("true" if items else "false"))
+          print("matrix=" + json.dumps({"include": items}))
+          PY
 
   fuzz:
     name: fuzz ${{ matrix.dir }} ${{ matrix.target }}
@@ -76,8 +70,7 @@ jobs:
       - name: Fetch native sources
         run: '[ -f third_party/fetch ] && python3 third_party/fetch || true'
       - name: Fuzz
-        working-directory: ${{ matrix.dir }}
-        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=${{ inputs.fuzz_seconds || '3600' }} -rss_limit_mb=4096
+        run: cargo +nightly fuzz run --fuzz-dir ${{ matrix.dir }} ${{ matrix.target }} -- -max_total_time=${{ inputs.fuzz_seconds || '3600' }} -rss_limit_mb=4096
       - name: Upload crashes
         if: failure()
         uses: actions/upload-artifact@v4
