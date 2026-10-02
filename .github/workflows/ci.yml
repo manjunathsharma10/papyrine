@@ -160,7 +160,10 @@ jobs:
         run: |
           if [ -f tools/check-no-corpus ]; then python tools/check-no-corpus; else echo "tools/check-no-corpus not present yet"; fi
       - name: Gate self-test (deliberate violations must fail)
-        run: target/debug/gates-selftest --require-all
+        run: |
+          # The no-corpus fixtures need tools/check-no-corpus; once it exists nothing may be skipped.
+          flag=""; [ -f tools/check-no-corpus ] && flag="--require-all"
+          target/debug/gates-selftest $flag
 
   frontend:
     name: frontend
