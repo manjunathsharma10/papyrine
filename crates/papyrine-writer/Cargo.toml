@@ -5,8 +5,27 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "Incremental section writer, ID-preserving full write, atomic replace and save policy for Papyrine"
 
 [dependencies]
+papyrine-cos = { path = "../papyrine-cos" }
+thiserror = "2"
+md-5 = "0.10"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+getrandom = "0.3"
+zeroize = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+papyrine-render = { path = "../papyrine-render" }
+tempfile = "3"
 
 [lints]
 workspace = true
