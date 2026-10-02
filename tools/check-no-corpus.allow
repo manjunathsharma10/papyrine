@@ -1,0 +1,1 @@
+# Paths (fnmatch globs) exempt from the type/size rules. Starts empty (ADR-017).

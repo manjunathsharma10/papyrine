@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "Deterministic generator for synthetic Papyrine test PDFs (typical, large, encrypted, malformed)"
 
 [dependencies]
+miniz_oxide = "0.9"
 
 [lints]
 workspace = true

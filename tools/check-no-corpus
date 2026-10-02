@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Fail if the repository tracks test corpora, keys, or large blobs (ADR-017).
+
+Checks `git ls-files`:
+  1. extensions .pdf .fdf .xfdf .p12 .pfx .key .pem (any case), or content starting with %PDF-/%FDF-
+  2. any file larger than 256 KB (262144 bytes), except top-level corpus/*.toml manifests
+     (large text files by design: one entry per corpus file, about 600 bytes each)
+  3. anything under corpus/ except corpus/*.toml, corpus/fetch and corpus/README.md
+Rules 1 and 2 can be waived per path/glob in tools/check-no-corpus.allow (starts empty,
+one pattern per line, '#' comments). Rule 3 cannot be waived.
+
+Usage: tools/check-no-corpus [--root DIR] | --self-test
+Exit status: 0 clean, 1 violations, 2 usage/git error.
+"""
+import fnmatch
+import os
+import subprocess
+import sys
+import tempfile
+
+LIMIT = 256 * 1024
+BAD_EXT = {".pdf", ".fdf", ".xfdf", ".p12", ".pfx", ".key", ".pem"}
+CORPUS_OK_FILES = {"corpus/fetch", "corpus/README.md"}
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def tracked(root):
+    r = subprocess.run(["git", "-C", root, "ls-files", "-z"], capture_output=True)
+    if r.returncode != 0:
+        print("git ls-files failed: " + r.stderr.decode(errors="replace"), file=sys.stderr)
+        sys.exit(2)
+    return [p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p]
+
+
+def load_allow(root):
+    path = os.path.join(root, "tools", "check-no-corpus.allow")
+    pats = []
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            line = line.split("#", 1)[0].strip()
+            if line:
+                pats.append(line)
+    return pats
+
+
+def check(root):
+    allow = load_allow(root)
+    problems = []
+    for p in tracked(root):
+        full = os.path.join(root, p)
+        if not os.path.isfile(full):  # deleted in worktree or submodule
+            continue
+        allowed = any(fnmatch.fnmatch(p, pat) for pat in allow)
+        if p.startswith("corpus/"):
+            rest = p[len("corpus/"):]
+            if not ("/" not in rest and rest.endswith(".toml")) and p not in CORPUS_OK_FILES:
+                problems.append((p, "tracked file under corpus/ (only *.toml, fetch, README.md allowed)"))
+        ext = os.path.splitext(p)[1].lower()
+        if not allowed:
+            if ext in BAD_EXT:
+                problems.append((p, "forbidden file type " + ext))
+            else:
+                try:
+                    with open(full, "rb") as f:
+                        head = f.read(5)
+                except OSError:
+                    head = b""
+                if head in (b"%PDF-", b"%FDF-"):
+                    problems.append((p, "content looks like a PDF/FDF"))
+            size = os.path.getsize(full)
+            is_manifest = p.startswith("corpus/") and "/" not in p[len("corpus/"):] and p.endswith(".toml")
+            if size > LIMIT and not is_manifest:
+                problems.append((p, "blob of %d bytes exceeds %d" % (size, LIMIT)))
+    return problems
+
+
+def report(problems):
+    for p, why in problems:
+        print("check-no-corpus: %s: %s" % (p, why), file=sys.stderr)
+    if problems:
+        print("check-no-corpus: %d violation(s)" % len(problems), file=sys.stderr)
+        return 1
+    print("check-no-corpus: ok")
+    return 0
+
+
+def git(d, *a):
+    subprocess.run(["git", "-C", d, *a], check=True, capture_output=True)
+
+
+def self_test():
+    ok = True
+
+    def expect(name, d, want):
+        nonlocal ok
+        got = {p for p, _ in check(d)}
+        good = got == set(want)
+        ok &= good
+        print("  %-28s %s%s" % (name, "pass" if good else "FAIL", "" if good else "  got=%s want=%s" % (sorted(got), sorted(want))))
+
+    def write(d, rel, data=b"x"):
+        full = os.path.join(d, rel)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "wb") as f:
+            f.write(data)
+
+    with tempfile.TemporaryDirectory() as d:
+        git(d, "init", "-q")
+        for rel in ("src/main.rs", "corpus/manifest.toml", "corpus/js-forms.toml", "corpus/fetch", "corpus/README.md"):
+            write(d, rel)
+        git(d, "add", ".")
+        expect("clean tree", d, [])
+        write(d, "docs/a.PDF")
+        write(d, "docs/form.xfdf")
+        write(d, "keys/id.p12")
+        write(d, "keys/server.pem")
+        write(d, "keys/tls.key")
+        write(d, "disguised.dat", b"%PDF-1.7\n")
+        write(d, "assets/big.bin", b"\0" * (LIMIT + 1))
+        write(d, "assets/edge.bin", b"\0" * LIMIT)
+        write(d, "corpus/big-manifest.toml", b"#" * (LIMIT + 10))  # manifests may exceed the size limit
+        write(d, "corpus/cache/files/a.txt")
+        write(d, "corpus/notes.md")
+        write(d, "corpus/sub/x.toml")
+        git(d, "add", ".")
+        bad = ["docs/a.PDF", "docs/form.xfdf", "keys/id.p12", "keys/server.pem", "keys/tls.key", "disguised.dat",
+               "assets/big.bin", "corpus/cache/files/a.txt", "corpus/notes.md", "corpus/sub/x.toml"]
+        expect("violations detected", d, bad)
+        write(d, "tools/check-no-corpus.allow", b"# waive\nassets/big.bin\ndocs/*.PDF\n")
+        git(d, "add", ".")
+        expect("allowlist waives size/type", d, [p for p in bad if p not in ("assets/big.bin", "docs/a.PDF")])
+        write(d, "tools/check-no-corpus.allow", b"corpus/*\n")
+        expect("allowlist cannot waive corpus/", d, bad)
+    print("self-test " + ("passed" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
+def main(argv):
+    if "--self-test" in argv:
+        return self_test()
+    root = os.path.abspath(os.path.join(HERE, ".."))
+    if "--root" in argv:
+        root = os.path.abspath(argv[argv.index("--root") + 1])
+    elif argv:
+        print(__doc__, file=sys.stderr)
+        return 2
+    return report(check(root))
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
