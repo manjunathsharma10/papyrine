@@ -1,1 +1,4 @@
-# Paths (fnmatch globs) exempt from the type/size rules. Starts empty (ADR-017).
+# Paths (fnmatch globs) exempt from the type/size rules (ADR-017).
+# Legitimately large text files (lockfile and generated licence notices), not corpus data.
+site/package-lock.json
+THIRD_PARTY_LICENSES.md

@@ -51,13 +51,26 @@ fn collect_objects(dir: &Path, out: &mut Vec<String>) {
     }
 }
 
+/// `canonicalize` yields `\\?\C:\...` verbatim paths on Windows; CMake/MSBuild mangle them into
+/// `\\\(1,1): error C1083`. Strip the prefix when the remainder is an ordinary drive path.
+fn simplify(p: PathBuf) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        let b = rest.as_bytes();
+        if b.len() >= 3 && b[1] == b':' && b[2] == b'\\' {
+            return PathBuf::from(rest);
+        }
+    }
+    p
+}
+
 fn on_off(b: bool) -> &'static str {
     if b { "ON" } else { "OFF" }
 }
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let root = manifest.join("../..").canonicalize().unwrap();
+    let root = simplify(manifest.join("../..").canonicalize().unwrap());
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target = env::var("TARGET").unwrap();
 
