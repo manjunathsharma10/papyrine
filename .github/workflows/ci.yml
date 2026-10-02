@@ -195,7 +195,7 @@ jobs:
     name: bundle (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     if: needs.detect.outputs.tauri == 'true'
-    needs: [detect, test]
+    needs: [detect]
     strategy:
       fail-fast: false
       matrix:
