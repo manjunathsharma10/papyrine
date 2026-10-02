@@ -64,6 +64,28 @@ fn simplify(p: PathBuf) -> PathBuf {
     p
 }
 
+/// The static archive named like one of `names` in `dir` (`lib<n>.a` or `<n>.lib`). Different
+/// platforms and CMake projects name the same library differently (MSVC zlib installs `zs.lib`,
+/// libjpeg-turbo `jpeg-static.lib`), so the real file decides both the link line and what qpdf's
+/// own CMake is told to use.
+fn find_static(dir: &Path, names: &[&str]) -> (String, PathBuf) {
+    for n in names {
+        for f in [format!("lib{n}.a"), format!("{n}.lib")] {
+            let p = dir.join(&f);
+            if p.exists() {
+                return ((*n).to_string(), p);
+            }
+        }
+    }
+    let have: Vec<_> = fs::read_dir(dir)
+        .map(|rd| rd.flatten().map(|e| e.file_name()).collect())
+        .unwrap_or_default();
+    panic!(
+        "none of {names:?} found as a static library in {} (have {have:?})",
+        dir.display()
+    );
+}
+
 fn on_off(b: bool) -> &'static str {
     if b { "ON" } else { "OFF" }
 }
@@ -84,13 +106,26 @@ fn main() {
 
     // Third-party code always builds optimised: debug qpdf is needlessly slow for tests.
     let profile = "Release";
+    // MSVC: all three CMake builds, the shim (cc) and rustc must agree on the C runtime.
+    let msvc = target.contains("msvc");
+    let crt_static = env::var("CARGO_CFG_TARGET_FEATURE")
+        .map(|f| f.split(',').any(|x| x == "crt-static"))
+        .unwrap_or(false);
+    let msvc_runtime = if crt_static {
+        "MultiThreaded"
+    } else {
+        "MultiThreadedDLL"
+    };
     // Never let CMake find Homebrew/system copies of zlib, jpeg, openssl or gnutls.
     let ignore_prefixes = "/opt/homebrew;/usr/local;/opt/local";
 
     // zlib
     let zlib_prefix = out.join("zlib-install");
-    cmake::Config::new(&zlib.dir)
-        .out_dir(out.join("zlib-build"))
+    let mut zcfg = cmake::Config::new(&zlib.dir);
+    if msvc {
+        zcfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", msvc_runtime);
+    }
+    zcfg.out_dir(out.join("zlib-build"))
         .profile(profile)
         .define("CMAKE_INSTALL_PREFIX", &zlib_prefix)
         .define("ZLIB_BUILD_SHARED", "OFF")
@@ -104,8 +139,11 @@ fn main() {
     // libjpeg-turbo: SIMD off (portable, no NASM requirement); qpdf only uses it for DCT image
     // re-encoding, which is not a hot path. TurboJPEG API, tools and tests are not needed.
     let jpeg_prefix = out.join("jpeg-install");
-    cmake::Config::new(&jpeg.dir)
-        .out_dir(out.join("jpeg-build"))
+    let mut jcfg = cmake::Config::new(&jpeg.dir);
+    if msvc {
+        jcfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", msvc_runtime);
+    }
+    jcfg.out_dir(out.join("jpeg-build"))
         .profile(profile)
         .define("CMAKE_INSTALL_PREFIX", &jpeg_prefix)
         .define("ENABLE_SHARED", "0")
@@ -129,13 +167,21 @@ fn main() {
     let prefix_path = format!("{};{}", zlib_prefix.display(), jpeg_prefix.display());
 
     let qpdf_build_dir = out.join("qpdf-build");
-    cmake::Config::new(&qpdf.dir)
-        .out_dir(&qpdf_build_dir)
+    let (zlib_name, zlib_path) = find_static(&zlib_prefix.join("lib"), &["z", "zs", "zlibstatic"]);
+    let (jpeg_name, jpeg_path) = find_static(&jpeg_prefix.join("lib"), &["jpeg", "jpeg-static"]);
+    let mut qcfg = cmake::Config::new(&qpdf.dir);
+    if msvc {
+        qcfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", msvc_runtime);
+    }
+    qcfg.out_dir(&qpdf_build_dir)
         .profile(profile)
         .build_target("libqpdf")
         .env("PKG_CONFIG_LIBDIR", &empty_pc)
         .env("PKG_CONFIG_PATH", &empty_pc)
         .define("CMAKE_PREFIX_PATH", &prefix_path)
+        // Hand over the exact archives so qpdf's name guessing (z/zlib, jpeg) cannot miss them.
+        .define("ZLIB_LIB_PATH", &zlib_path)
+        .define("LIBJPEG_LIB_PATH", &jpeg_path)
         .define("BUILD_SHARED_LIBS", "OFF")
         .define("BUILD_STATIC_LIBS", "ON")
         .define("STATIC_JPEG", "ON")
@@ -160,12 +206,22 @@ fn main() {
         .define("CMAKE_IGNORE_PREFIX_PATH", ignore_prefixes)
         .build();
 
-    let qpdf_lib_dir = qpdf_build_dir.join("build/libqpdf");
-    assert!(
-        qpdf_lib_dir.join("libqpdf.a").exists() || qpdf_lib_dir.join("qpdf.lib").exists(),
-        "libqpdf static archive not found in {}",
-        qpdf_lib_dir.display()
-    );
+    // Multi-config generators (Visual Studio) put the archive in a per-config subdirectory.
+    let qpdf_base = qpdf_build_dir.join("build/libqpdf");
+    let qpdf_lib_dir = [qpdf_base.join("Release"), qpdf_base.clone()]
+        .into_iter()
+        .find(|d| {
+            ["libqpdf.a", "qpdf.lib", "libqpdf.lib"]
+                .iter()
+                .any(|f| d.join(f).exists())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "libqpdf static archive not found under {}",
+                qpdf_base.display()
+            )
+        });
+    let (qpdf_name, _) = find_static(&qpdf_lib_dir, &["qpdf", "libqpdf"]);
 
     // Record the effective CMake configuration for the license gate (ARCHITECTURE section 12):
     // the cache entries plus the crypto object files that were actually compiled.
@@ -216,14 +272,14 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         jpeg_prefix.join("lib").display()
     );
-    println!("cargo:rustc-link-lib=static=qpdf");
-    println!("cargo:rustc-link-lib=static=jpeg");
-    let zname = if target.contains("windows-msvc") {
-        "zlibstatic"
-    } else {
-        "z"
-    };
-    println!("cargo:rustc-link-lib=static={zname}");
+    println!("cargo:rustc-link-lib=static={qpdf_name}");
+    println!("cargo:rustc-link-lib=static={jpeg_name}");
+    println!("cargo:rustc-link-lib=static={zlib_name}");
+    if target.contains("windows") {
+        // qpdf's secure random and file code call into these.
+        println!("cargo:rustc-link-lib=advapi32");
+        println!("cargo:rustc-link-lib=bcrypt");
+    }
     if target.contains("apple") || target.contains("freebsd") {
         println!("cargo:rustc-link-lib=c++");
     } else if !target.contains("msvc") {
