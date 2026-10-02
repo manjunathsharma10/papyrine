@@ -5,8 +5,20 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "Search normalization, matching and highlight geometry for Papyrine"
 
 [dependencies]
+papyrine-core = { path = "../papyrine-core" }
+unicode-normalization = "0.1"
+unicode-bidi = "0.3"
+unicode-segmentation = "1"
+
+[dev-dependencies]
+papyrine-render = { path = "../papyrine-render" }
+
+[[bench]]
+name = "b3"
+harness = false
 
 [lints]
 workspace = true
