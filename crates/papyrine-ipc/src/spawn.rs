@@ -158,7 +158,17 @@ where
     pub fn spawn(spec: &ChildSpec, handshake_timeout: Duration) -> Result<Self, IpcError> {
         let Spawned { process, endpoint } =
             spawn_child(spec).map_err(|e| IpcError::internal(format!("spawn: {e}")))?;
-        let client = Client::connect(endpoint, &spec.role, handshake_timeout)?;
+        let mut process = process;
+        let client = match Client::connect(endpoint, &spec.role, handshake_timeout) {
+            Ok(c) => c,
+            Err(mut e) => {
+                // A child that dies during startup is the usual cause; say how.
+                if let Ok(Some(code)) = process.wait_or_kill(Duration::from_millis(1500)) {
+                    e.message = format!("{} (child exit code {code:#x})", e.message);
+                }
+                return Err(e);
+            }
+        };
         Ok(Self { client, process })
     }
 

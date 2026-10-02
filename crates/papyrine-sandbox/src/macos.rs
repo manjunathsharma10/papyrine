@@ -152,3 +152,25 @@ pub(crate) fn apply(p: &Profile) -> Result<Report> {
         degraded: vec![],
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn profile_denies_by_default_and_escapes_paths() {
+        let mut p = Profile::new(PathBuf::from("/private/var/folders/x/\"t\"\\y"));
+        p.read_dirs
+            .push(PathBuf::from("/Applications/Papyrine.app/Contents"));
+        let t = profile_text(&p);
+        assert!(t.starts_with("(version 1)\n(deny default)"));
+        assert!(t.contains("(deny network*)"));
+        assert!(
+            t.contains(r#"(allow file-read* (subpath "/Applications/Papyrine.app/Contents"))"#)
+        );
+        assert!(t.contains(r#"(subpath "/private/var/folders/x/\"t\"\\y")"#));
+        // No blanket allow of the user's home.
+        assert!(!t.contains("/Users"));
+    }
+}

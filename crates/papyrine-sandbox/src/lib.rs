@@ -183,3 +183,32 @@ pub fn temp_env(temp_dir: &Path) -> Vec<(&'static str, PathBuf)> {
         ("TMP", temp_dir.to_path_buf()),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_dir_is_unique_and_removed_on_drop() {
+        let a = ChildTempDir::create().unwrap();
+        let b = ChildTempDir::create().unwrap();
+        assert_ne!(a.path(), b.path());
+        let p = a.path().to_path_buf();
+        std::fs::write(p.join("f"), b"x").unwrap();
+        drop(a);
+        assert!(!p.exists());
+    }
+
+    #[test]
+    fn normalized_drops_missing_entries_and_canonicalises() {
+        let t = ChildTempDir::create().unwrap();
+        let p = Profile::new(t.path())
+            .read_dir(t.path().join("missing"))
+            .read_dir(t.path())
+            .read_dir(t.path().join("."));
+        let n = p.normalized().unwrap();
+        assert_eq!(n.read_dirs.len(), 1, "{:?}", n.read_dirs);
+        assert!(n.require_enforced);
+        assert!(Profile::new(t.path().join("nope")).normalized().is_err());
+    }
+}

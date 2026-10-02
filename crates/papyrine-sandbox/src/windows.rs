@@ -46,6 +46,21 @@ struct ChildProcessPolicy {
 /// AFD endpoint, which is what refuses `socket()`; `Low` is 0x1000.
 const CHILD_INTEGRITY_RID: u32 = 0;
 
+/// Experiment switches while the Windows profile is being tuned on CI
+/// (`PAPYRINE_WIN_VARIANT=lowil,nouilimit,norestrict,nodisable`). Removed once
+/// the profile is settled.
+fn variant(name: &str) -> bool {
+    std::env::var("PAPYRINE_WIN_VARIANT").is_ok_and(|v| v.split(',').any(|x| x == name))
+}
+
+fn integrity_rid_for_children() -> u32 {
+    if variant("lowil") {
+        0x1000
+    } else {
+        CHILD_INTEGRITY_RID
+    }
+}
+
 fn last_err(what: &str) -> io::Error {
     let e = io::Error::last_os_error();
     io::Error::new(e.kind(), format!("{what}: {e}"))
@@ -180,7 +195,7 @@ fn make_child_token() -> io::Result<OwnedHandle> {
     let restricted = own(out);
 
     // Integrity level.
-    let il = Sid::from_str(&format!("S-1-16-{CHILD_INTEGRITY_RID}"))?;
+    let il = Sid::from_str(&format!("S-1-16-{}", integrity_rid_for_children()))?;
     let label = TOKEN_MANDATORY_LABEL {
         Label: SID_AND_ATTRIBUTES {
             Sid: il.0,
@@ -243,6 +258,9 @@ fn make_job(profile: &Profile) -> io::Result<OwnedHandle> {
             | JOB_OBJECT_UILIMIT_SYSTEMPARAMETERS
             | JOB_OBJECT_UILIMIT_WRITECLIPBOARD,
     };
+    if variant("nouilimit") {
+        return Ok(job);
+    }
     // SAFETY: struct matches the class.
     if unsafe {
         SetInformationJobObject(
@@ -489,7 +507,8 @@ pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
 /// no-write-up does not block the child.
 pub fn create_child_dir(path: &Path) -> io::Result<()> {
     let sddl = wide(OsStr::new(&format!(
-        "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;OW)(A;OICI;FA;;;WD)S:(ML;OICI;NW;;;S-1-16-{CHILD_INTEGRITY_RID})"
+        "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;OW)(A;OICI;FA;;;WD)S:(ML;OICI;NW;;;S-1-16-{})",
+        integrity_rid_for_children()
     )));
     let mut sd: *mut c_void = null_mut();
     // SAFETY: valid SDDL string and out pointer.
