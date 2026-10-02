@@ -83,9 +83,9 @@ jobs:
       - name: Windows sandbox profile variants (diagnostic)
         if: runner.os == 'Windows' && steps.tests.outcome == 'failure'
         run: |
-          for v in "" noproclimit "noproclimit,nouilimit" "noproclimit,nouilimit,norestrict" "noproclimit,nouilimit,norestrict,nodisable" "noproclimit,nouilimit,norestrict,nodisable,lowil"; do
+          for v in "" lowil nouilimit "lowil,nouilimit,norestrict"; do
             echo "::group::variant [$v]"
-            PAPYRINE_WIN_VARIANT="$v" cargo test -p papyrine-sandbox --test sandbox -- --nocapture --test-threads=1 sandbox_denies sandboxed_engine 2>&1 | grep -E "exit code|mechanisms|denied |NOT denied|should work|test .*(ok|FAILED)|panicked" || true
+            PAPYRINE_WIN_VARIANT="$v" cargo test -p papyrine-sandbox --test sandbox -- --nocapture --test-threads=1 sandbox_denies sandboxed_engine 2>&1 | grep -E "exit code|mechanisms|denied |NOT denied|should work|test .*(ok|FAILED)|panicked|bootstrap" || true
             echo "::endgroup::"
           done
       - name: TypeScript bindings are current

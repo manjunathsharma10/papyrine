@@ -607,13 +607,10 @@ fn set_policy<T>(policy: PROCESS_MITIGATION_POLICY, v: &T) -> io::Result<()> {
 }
 
 fn integrity_rid() -> io::Result<u32> {
-    let mut tok: HANDLE = null_mut();
-    // SAFETY: current process; out pointer.
-    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut tok) } == 0 {
-        return Err(last_err("OpenProcessToken"));
-    }
-    let tok = own(tok);
-    let buf = token_info(tok.as_raw_handle() as HANDLE, TokenIntegrityLevel)?;
+    // `GetCurrentProcessToken()`: a pseudo handle that needs no access check. A restricted
+    // token cannot `OpenProcessToken` its own process (the token's DACL names only the user).
+    let tok = -4isize as HANDLE;
+    let buf = token_info(tok, TokenIntegrityLevel)?;
     // SAFETY: buffer holds a TOKEN_MANDATORY_LABEL.
     let label = unsafe { &*(buf.as_ptr() as *const TOKEN_MANDATORY_LABEL) };
     // SAFETY: valid SID; the last sub-authority is the RID.
