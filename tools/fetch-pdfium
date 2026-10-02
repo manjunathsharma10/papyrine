@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Fetch a pinned bblanchon/pdfium-binaries build (no V8/XFA) for a platform.
+
+Usage: tools/fetch-pdfium [--platform mac-arm64|mac-x64|linux-x64|win-x64|win-arm64]
+Output: third_party/cache/pdfium/<platform>/{lib,bin,include,LICENSE,...}
+The archive SHA-256 is pinned below and verified before extraction.
+"""
+import argparse, hashlib, io, os, platform, sys, tarfile, urllib.request
+
+TAG = "chromium/8076"
+BASE = "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8076/"
+PINS = {
+    "mac-arm64": "0d6781fe08906baff3d82c90953e519fbc4eb253fe76431e5ed53b157763b97c",
+    "mac-x64": "40865f34642c34d82cc336132df9e0347133f4692cd46776647af160f9a5cca9",
+    "linux-x64": "d9d67bc40af03aef4fe28a60b19b1086f28ace019c8c9caf19cb7fe3d14ceca3",
+    "win-x64": "808d36da9bc5a3104315fb307c80998121f565ee53953633bf33e80d7429e5ac",
+    "win-arm64": "ab7c45c25fc8456fd9b94666ce3dd27a940f4984f54b328f012468f869d34346",
+}
+
+
+def host_platform():
+    m = platform.machine().lower()
+    arm = m in ("arm64", "aarch64")
+    s = sys.platform
+    if s == "darwin":
+        return "mac-arm64" if arm else "mac-x64"
+    if s.startswith("linux"):
+        if arm:
+            sys.exit("linux-arm64 is not pinned; pass --platform")
+        return "linux-x64"
+    if s in ("win32", "cygwin"):
+        return "win-arm64" if arm else "win-x64"
+    sys.exit(f"unsupported host {s}/{m}")
+
+
+def download(url):
+    import ssl, subprocess
+    try:
+        with urllib.request.urlopen(url) as r:
+            return r.read()
+    except (ssl.SSLError, urllib.error.URLError) as e:
+        # python.org builds on macOS ship without a CA bundle; the pinned
+        # SHA-256 below still authenticates the payload.
+        print(f"urllib failed ({e}); retrying with curl")
+        return subprocess.run(["curl", "-fsSL", url], check=True, capture_output=True).stdout
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--platform", choices=sorted(PINS), default=None)
+    ap.add_argument("--force", action="store_true")
+    a = ap.parse_args()
+    plat = a.platform or host_platform()
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    dest = os.path.join(root, "third_party", "cache", "pdfium", plat)
+    stamp = os.path.join(dest, ".pinned-sha256")
+    if not a.force and os.path.exists(stamp) and open(stamp).read().strip() == PINS[plat]:
+        print(f"pdfium {TAG} {plat} already present: {dest}")
+        return
+    url = f"{BASE}pdfium-{plat}.tgz"
+    print(f"downloading {url}")
+    data = download(url)
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != PINS[plat]:
+        sys.exit(f"SHA-256 mismatch for {plat}: got {digest}, pinned {PINS[plat]}")
+    os.makedirs(dest, exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
+        for m in t.getmembers():
+            p = os.path.realpath(os.path.join(dest, m.name))
+            if not p.startswith(os.path.realpath(dest) + os.sep) and p != os.path.realpath(dest):
+                sys.exit(f"unsafe path in archive: {m.name}")
+        t.extractall(dest)
+    with open(stamp, "w") as f:
+        f.write(PINS[plat] + "\n")
+    print(f"extracted to {dest}")
+
+
+if __name__ == "__main__":
+    main()
