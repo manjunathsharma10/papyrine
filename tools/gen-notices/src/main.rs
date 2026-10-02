@@ -39,9 +39,16 @@ struct Entry {
     texts: Vec<String>,
 }
 
+/// Canonical form of a licence text: LF endings, no trailing spaces, and leading `//`
+/// comment markers removed (the same file ships with and without them in different PDFium archives).
 fn normalize(t: &str) -> String {
     let t = t.replace("\r\n", "\n");
-    let lines: Vec<&str> = t.lines().map(str::trim_end).collect();
+    let mut lines: Vec<&str> = t.lines().map(str::trim_end).collect();
+    for l in lines.iter_mut() {
+        if let Some(r) = l.strip_prefix("//") {
+            *l = r.strip_prefix(' ').unwrap_or(r);
+        }
+    }
     lines.join("\n").trim().to_string()
 }
 
