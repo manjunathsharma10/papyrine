@@ -1,0 +1,123 @@
+name: spike-shell
+
+# Spike 0.1: bare Tauri 2 shell. Builds installers, records sizes, launch time
+# and idle memory per OS, and writes a job summary.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apps/desktop/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/spike-shell.yml"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  shell:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-latest, bundles: "app,dmg", bin: "target/release/papyrine" }
+          - { name: windows-x64, os: windows-latest, bundles: "msi,nsis", bin: "target/release/papyrine.exe" }
+          - { name: linux-x64, os: ubuntu-22.04, bundles: "deb,rpm,appimage", bin: "target/release/papyrine" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev \
+            patchelf rpm xvfb libfuse2 file
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile=false
+
+      - name: Build installers
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          CI: "true"
+        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Measure (macOS, Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
+            --bundle-dir target/release/bundle --dist apps/desktop/dist \
+            --runs 10 --idle-secs 10 --json measure.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Measure (Linux, under Xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a node apps/desktop/scripts/measure-shell.mjs --bin ${{ matrix.bin }} \
+            --bundle-dir target/release/bundle --dist apps/desktop/dist \
+            --runs 10 --idle-secs 10 --json measure.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Budget check
+        shell: bash
+        run: |
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("measure.json","utf8"));
+            const MB = 1048576, os = r.platform;
+            const idleBudget = os === "darwin" ? 150 : os === "linux" ? 175 : 200;
+            const lines = [];
+            for (const a of r.artifacts ?? []) {
+              if (/\.app$/.test(a.file)) continue;
+              const lim = /AppImage$/.test(a.file) ? 100 : 50;
+              lines.push(`${a.bytes/MB <= lim ? "PASS" : "FAIL"} installer ${a.file} ${(a.bytes/MB).toFixed(1)} MB (<= ${lim})`);
+            }
+            const gz = r.jsBundle.reduce((n,j)=>n+j.gzip,0)/1024;
+            lines.push(`${gz <= 200 ? "PASS" : "FAIL"} initial JS ${gz.toFixed(1)} KB gz (<= 200)`);
+            lines.push(`${r.launch.medianMs < 1000 ? "PASS" : "FAIL"} launch median ${r.launch.medianMs} ms (< 1000; CI runners are not the reference machine)`);
+            lines.push(`${r.idle.medianBytes/MB <= idleBudget ? "PASS" : "FAIL"} idle ${(r.idle.medianBytes/MB).toFixed(1)} MB (<= ${idleBudget})`);
+            const out = "### Budget check (" + os + ")\n" + lines.map(l => "- " + l).join("\n");
+            console.log(out);
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n" + out + "\n");
+          '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-${{ matrix.name }}
+          path: |
+            measure.json
+            target/release/bundle/dmg/*.dmg
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
+          retention-days: 7
+
+  flatpak:
+    name: linux-flatpak (feasibility)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Note
+        run: |
+          echo "Flatpak is not built in this spike: it needs a flatpak-builder manifest against" \
+            "org.gnome.Platform with offline Cargo/pnpm sources. Tracked for v0.1 packaging." | tee -a "$GITHUB_STEP_SUMMARY"

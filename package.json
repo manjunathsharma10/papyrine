@@ -1,0 +1,10 @@
+{
+  "name": "papyrine-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "desktop:dev": "pnpm --filter papyrine-desktop tauri dev",
+    "desktop:build": "pnpm --filter papyrine-desktop tauri build",
+    "desktop:typecheck": "pnpm --filter papyrine-desktop typecheck"
+  }
+}

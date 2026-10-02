@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "tools/*"]
+members = ["crates/*", "tools/*", "apps/desktop/src-tauri"]
 exclude = ["spikes"]
 
 [workspace.package]
