@@ -15,9 +15,13 @@ export async function fetchTile(page: number, x: number, y: number): Promise<Ima
   return createImageBitmap(new ImageData(bytes, TILE_SIZE, TILE_SIZE));
 }
 
-/** Tell the host the first tile is on screen (launch-time measurement). */
-export function reportFirstTilePainted(): Promise<void> {
-  return invoke("first_tile_painted");
+/**
+ * Tell the host about the first tile (launch-time measurement). "drawn" fires
+ * right after drawImage; "presented" two animation frames later. WebKit stops
+ * animation frames for an occluded window, so the host keeps both.
+ */
+export function reportFirstTilePainted(stage: "drawn" | "presented"): Promise<void> {
+  return invoke("first_tile_painted", { stage });
 }
 
 /** Surface a UI failure in the host trace (visible when PAPYRINE_TRACE is set). */

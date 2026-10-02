@@ -181,20 +181,40 @@ function startApp(bin) {
   return { t0, read: () => buf, pid: () => child.pid, kill: () => killTree(child) };
 }
 
-async function launchOnce(bin, { idle }) {
+let retries = 0;
+let occludedFallbacks = 0;
+/** Retry a launch that never reported a paint (observed rarely when the window is occluded); counted in the output. */
+async function launchOnce(bin, opts) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await launchAttempt(bin, opts);
+    } catch (e) {
+      if (attempt >= 2 || !/timeout/.test(String(e))) throw e;
+      retries++;
+      console.error(`retrying launch: ${e.message.slice(0, 200)}`);
+    }
+  }
+}
+
+async function launchAttempt(bin, { idle }) {
   const app = startApp(bin);
   try {
     let log = "";
     const deadline = Date.now() + 30_000;
     for (;;) {
       log = app.read();
-      if (/first_tile_painted epoch_ms=/.test(log) || /ui_error/.test(log)) break;
-      if (Date.now() > deadline) throw new Error("timeout waiting for first-tile-painted");
+      if (/stage=presented epoch_ms=/.test(log) || /ui_error/.test(log)) break;
+      const drawn = log.match(/stage=drawn epoch_ms=(\d+)/);
+      if (drawn && Date.now() - Number(drawn[1]) > 3000) {
+        occludedFallbacks++; // no animation frames (window occluded): use the "drawn" stamp
+        break;
+      }
+      if (Date.now() > deadline) throw new Error(`timeout waiting for first-tile-painted; trace so far: ${JSON.stringify(log)}`);
       await sleep(5);
     }
     const err = log.match(/ui_error (.*)/);
     if (err) throw new Error(`ui_error: ${err[1]}`);
-    const tPaint = Number(log.match(/first_tile_painted epoch_ms=(\d+)/)[1]);
+    const tPaint = Number((log.match(/stage=presented epoch_ms=(\d+)/) ?? log.match(/stage=drawn epoch_ms=(\d+)/))[1]);
     const mainStart = Number(log.match(/main_start epoch_ms=(\d+)/)?.[1] ?? NaN);
     const res = { launchMs: tPaint - app.t0, execToMainMs: mainStart - app.t0, mainToPaintMs: tPaint - mainStart };
     if (idle) {
@@ -259,9 +279,11 @@ async function main() {
     };
     const idleRuns = [];
     for (let i = 0; i < Number(args["idle-runs"] ?? 3); i++) idleRuns.push((await launchOnce(bin, { idle: true })).memory);
-    result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), breakdownLastRun: idleRuns.at(-1).per };
+    if (idleRuns.length) result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), breakdownLastRun: idleRuns.at(-1).per };
   }
 
+  result.launchRetries = retries;
+  result.occludedFallbacks = occludedFallbacks;
   if (args.json) writeFileSync(String(args.json), JSON.stringify(result, null, 2));
   console.log(summary(result));
 }
@@ -276,6 +298,8 @@ function summary(r) {
     L.push(`- launch -> first tile (${l.runs.length} runs): first ${l.firstMs} ms, median ${l.medianMs} ms, p95 ${l.p95Ms} ms, min ${l.minMs} ms, median excluding first ${l.medianWarmMs} ms; spawn->main median ${l.medianExecToMainMs} ms`);
     L.push(`- launch samples (ms): ${l.runs.map((x) => x.launchMs).join(", ")}`);
   }
+  if (r.launchRetries) L.push(`- launch retries after a missed paint event: ${r.launchRetries}`);
+  if (r.occludedFallbacks) L.push(`- runs where no animation frame arrived (window occluded) and the 'drawn' stamp was used: ${r.occludedFallbacks}`);
   if (r.idle) {
     L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes: median ${(r.idle.medianBytes / MB).toFixed(1)} MB (runs: ${r.idle.totalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
     for (const [k, v] of Object.entries(r.idle.breakdownLastRun)) L.push(`  - ${k}: ${(v / MB).toFixed(1)} MB`);

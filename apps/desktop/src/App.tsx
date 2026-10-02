@@ -12,8 +12,9 @@ export function App() {
       if (cancelled || !ctx) return;
       ctx.drawImage(bitmap, 0, 0);
       bitmap.close();
+      void reportFirstTilePainted("drawn");
       // Two frames: the first commits the draw, the second is after it was presented.
-      requestAnimationFrame(() => requestAnimationFrame(() => void reportFirstTilePainted()));
+      requestAnimationFrame(() => requestAnimationFrame(() => void reportFirstTilePainted("presented")));
     })().catch((e) => {
       console.error(e);
       void reportUiError(String(e));

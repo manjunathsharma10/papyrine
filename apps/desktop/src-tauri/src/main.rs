@@ -47,11 +47,11 @@ fn parse_tile_path(path: &str) -> Option<(u32, u32, u32)> {
 }
 
 #[tauri::command]
-fn first_tile_painted() {
+fn first_tile_painted(stage: &str) {
     let since_main = START.get().map_or(0, |s| s.elapsed().as_millis());
     if std::env::var_os("PAPYRINE_TRACE").is_some() {
         println!(
-            "PAPYRINE_TRACE first_tile_painted epoch_ms={} since_main_ms={since_main}",
+            "PAPYRINE_TRACE first_tile_painted stage={stage} epoch_ms={} since_main_ms={since_main}",
             epoch_ms()
         );
     }
