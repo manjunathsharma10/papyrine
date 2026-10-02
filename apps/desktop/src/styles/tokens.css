@@ -1,0 +1,177 @@
+/*
+ * Design tokens. Three themes:
+ *  - light (default) and dark follow prefers-color-scheme unless the user
+ *    overrides with data-theme on <html>;
+ *  - hc is an explicit high-contrast palette;
+ *  - under forced-colors (Windows contrast themes) the system palette wins.
+ */
+:root {
+  color-scheme: light;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 13.5px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  --toolbar-h: 44px;
+  --tabbar-h: 34px;
+  --status-h: 26px;
+
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --surface-2: #f5f6f9;
+  --surface-hover: #e8ebf2;
+  --surface-active: #dbe1ee;
+  --border: #c9cfdb;
+  --border-strong: #8a93a6;
+  --text: #1a2133;
+  --text-muted: #4f5a70;
+  --accent: #2147c4;
+  --accent-contrast: #ffffff;
+  --accent-subtle: #e3eaff;
+  --focus: #1a56ff;
+  --danger: #b3261e;
+  --danger-subtle: #fde8e6;
+  --warning-subtle: #fff4d6;
+  --warning-text: #5c4300;
+  --viewer-bg: #cfd4de;
+  --page-shadow: 0 1px 3px rgb(20 30 60 / 0.3), 0 4px 14px rgb(20 30 60 / 0.15);
+  --overlay: rgb(15 20 35 / 0.45);
+  --mark: rgb(255 200 0 / 0.45);
+  --hit-bg: #ffe27a;
+  --hit-fg: #1a2133;
+  --shadow-pop: 0 8px 28px rgb(15 20 35 / 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #11141b;
+    --surface: #1a1f2a;
+    --surface-2: #151a23;
+    --surface-hover: #262d3c;
+    --surface-active: #323b50;
+    --border: #343d51;
+    --border-strong: #6c7790;
+    --text: #e9ecf3;
+    --text-muted: #a6afc2;
+    --accent: #8fb0ff;
+    --accent-contrast: #0b1226;
+    --accent-subtle: #22305a;
+    --focus: #8fb0ff;
+    --danger: #ff9b92;
+    --danger-subtle: #4a1f1c;
+    --warning-subtle: #3d3214;
+    --warning-text: #ffe2a0;
+    --viewer-bg: #0c0f14;
+    --page-shadow: 0 1px 3px rgb(0 0 0 / 0.6), 0 6px 18px rgb(0 0 0 / 0.5);
+    --overlay: rgb(0 0 0 / 0.6);
+    --mark: rgb(255 200 0 / 0.5);
+    --hit-bg: #ffd666;
+    --hit-fg: #11141b;
+    --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #11141b;
+  --surface: #1a1f2a;
+  --surface-2: #151a23;
+  --surface-hover: #262d3c;
+  --surface-active: #323b50;
+  --border: #343d51;
+  --border-strong: #6c7790;
+  --text: #e9ecf3;
+  --text-muted: #a6afc2;
+  --accent: #8fb0ff;
+  --accent-contrast: #0b1226;
+  --accent-subtle: #22305a;
+  --focus: #8fb0ff;
+  --danger: #ff9b92;
+  --danger-subtle: #4a1f1c;
+  --warning-subtle: #3d3214;
+  --warning-text: #ffe2a0;
+  --viewer-bg: #0c0f14;
+  --page-shadow: 0 1px 3px rgb(0 0 0 / 0.6), 0 6px 18px rgb(0 0 0 / 0.5);
+  --overlay: rgb(0 0 0 / 0.6);
+  --mark: rgb(255 200 0 / 0.5);
+  --hit-bg: #ffd666;
+  --hit-fg: #11141b;
+  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.6);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="hc"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #000000;
+  --surface-2: #000000;
+  --surface-hover: #1f1f1f;
+  --surface-active: #333333;
+  --border: #ffffff;
+  --border-strong: #ffffff;
+  --text: #ffffff;
+  --text-muted: #ffffff;
+  --accent: #ffd400;
+  --accent-contrast: #000000;
+  --accent-subtle: #1a1a00;
+  --focus: #00e5ff;
+  --danger: #ff8a80;
+  --danger-subtle: #000000;
+  --warning-subtle: #000000;
+  --warning-text: #ffd400;
+  --viewer-bg: #1a1a1a;
+  --page-shadow: 0 0 0 2px #ffffff;
+  --overlay: rgb(0 0 0 / 0.8);
+  --mark: rgb(255 212 0 / 0.55);
+  --hit-bg: #ffd400;
+  --hit-fg: #000000;
+  --shadow-pop: 0 0 0 2px #ffffff;
+}
+
+/* Windows contrast themes: defer entirely to the system palette. */
+@media (forced-colors: active) {
+  :root:not([data-theme]) {
+    --bg: Canvas;
+    --surface: Canvas;
+    --surface-2: Canvas;
+    --surface-hover: Canvas;
+    --surface-active: Canvas;
+    --border: CanvasText;
+    --border-strong: CanvasText;
+    --text: CanvasText;
+    --text-muted: CanvasText;
+    --accent: Highlight;
+    --accent-contrast: HighlightText;
+    --accent-subtle: Canvas;
+    --focus: Highlight;
+    --danger: CanvasText;
+    --danger-subtle: Canvas;
+    --warning-subtle: Canvas;
+    --warning-text: CanvasText;
+    --viewer-bg: Canvas;
+    --page-shadow: 0 0 0 1px CanvasText;
+    --overlay: Canvas;
+    --mark: Highlight;
+    --hit-bg: Mark;
+    --hit-fg: MarkText;
+    --shadow-pop: 0 0 0 1px CanvasText;
+  }
+}
