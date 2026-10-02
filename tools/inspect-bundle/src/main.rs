@@ -87,10 +87,12 @@ fn materialize(artifact: &Path) -> Result<Extracted, String> {
     std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
     let abs =
         std::fs::canonicalize(artifact).map_err(|e| format!("{}: {e}", artifact.display()))?;
-    let (a, t) = (
-        abs.to_string_lossy().into_owned(),
-        tmp.to_string_lossy().into_owned(),
-    );
+    // msiexec and 7z reject Windows verbatim paths (\\?\C:\...).
+    let plain = |p: &Path| {
+        let s = p.to_string_lossy().into_owned();
+        s.strip_prefix(r"\\?\").map(str::to_owned).unwrap_or(s)
+    };
+    let (a, t) = (plain(&abs), plain(&tmp));
     let mut ex = Extracted {
         dir: tmp.clone(),
         cleanup: vec![],
