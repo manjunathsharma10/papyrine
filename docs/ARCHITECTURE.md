@@ -1,7 +1,7 @@
 # Papyrine — Architecture
 
-Status: **Draft v3** (direction approved by the owner; revision 3 applies
-the second review) · Last updated: 2026-09-30
+Status: **Draft v4** (direction approved by the owner; revision 4 applies the
+Step 0 spike results) · Last updated: 2026-10-02
 
 **Product name:** **Papyrine** (ADR-019).
 - Crates: `papyrine-*`.
@@ -12,6 +12,32 @@ the second review) · Last updated: 2026-09-30
 This document describes processes, crates, data flow, threading, persistence,
 security boundaries, optional components and dependencies. Choices are
 justified in [DECISIONS.md](DECISIONS.md) (ADR-NNN).
+
+**Revision 4 (Step 0 results, 2026-10-02; ADR-026 to ADR-041, see
+[STEP_0_REPORT.md](STEP_0_REPORT.md)):**
+- §1.1/§1.2: Linux memory counts the app's own memory (anonymous + private
+  dirty), the 175 MB budget stays, and the app sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` on Linux (ADR-026). Measured: 260 MB PSS
+  default, 185 MB with the flag, 59 to 111 MB anonymous on the headless runner.
+- §1.1/§10: AppImage is dropped; Linux ships .deb, .rpm and Flatpak (ADR-027).
+- §4.6: B1 confirms the snapshot-section design (re-open 0.4 to 0.6 ms on 2,000
+  pages, edit to tile p95 at most 12 ms, at most 1 MB growth over 500 edits;
+  renderer-only, macOS). Command mirroring is not adopted for now (ADR-029).
+- §4.6/§4.2: tiles are opaque RGBA composited on white; flags
+  `FPDF_ANNOT | FPDF_REVERSE_BYTE_ORDER | FPDF_RENDER_LIMITEDIMAGECACHE`;
+  `pdfium-render` is only the loader and raw bindings (ADR-035); a background
+  warm-up hides the 21 to 26 ms cold first tile.
+- §3/§12: native sources are not vendored in the repo. `third_party/fetch`
+  downloads pinned tarballs checked by SHA-256, PDFium comes from pinned
+  prebuilt binaries, and C++ libraries are always built with the Release
+  profile (ADR-033).
+- §12: the shipped allowlist adds `LicenseRef-AGG-2.3` (PDFium-bundled
+  Anti-Grain Geometry), native manifest only (ADR-032).
+- Forms (ADR-006 and §4): ADR-006 confirmed by Spike 0.4 (99.6% for IRS-type forms, 62%
+  for the rest); execute per script, banner per form (ADR-030, ADR-031).
+- §11.2: printing on macOS and Linux in v0.1, Windows in v0.1.x (ADR-028).
+- Pending (Wave 2): Spike 0.3 (qpdf vs lopdf) and the qpdf large-file memory
+  run; ADR-002 and §1.2's large-document figures stand until they report.
 
 **Revision 2:**
 - Lightweight budgets became hard CI gates.
@@ -47,9 +73,9 @@ budgets conflict, the budgets win (ADR-010).
 
 | Budget | Target | Measured how | CI gate |
 |---|---|---|---|
-| Installer size (base, per platform/arch) | **≤ 50 MB** for `.dmg` (per-arch, not universal), `.msi`/NSIS, `.deb`, `.rpm`, Flatpak bundle · **AppImage ≤ 100 MB** (it bundles WebKitGTK). Internal target **≤ 30 MB** to keep headroom | Size of the release artifact | Fail above the budget, or if a PR grows an artifact > 5% vs `main` without a `size-increase-approved` label |
+| Installer size (base, per platform/arch) | **≤ 50 MB** for `.dmg` (per-arch, not universal), `.msi`/NSIS, `.deb`, `.rpm`, Flatpak bundle (no AppImage, ADR-027). Internal target **≤ 30 MB** to keep headroom | Size of the release artifact | Fail above the budget, or if a PR grows an artifact > 5% vs `main` without a `size-increase-approved` label |
 | Cold launch → first rendered page | **< 1.0 s** on the reference Mac (this machine, Apple Silicon) · warm **< 0.5 s** | Launch with a typical doc as an argument; the timestamp from process start to the UI's first-tile-painted event. "Cold" = after `sudo purge`, excluding the first-ever Gatekeeper verification | Absolute check on the reference machine each milestone. CI (macOS runner) fails on > 15% regression vs the rolling median, and on an absolute > 2.0 s |
-| Idle memory, one typical doc open | **≤ 150 MB** macOS · **≤ 175 MB** Linux · **≤ 200 MB** Windows (accepted) | Sum over **all** app processes, including webview helpers. macOS `phys_footprint`, Linux PSS, Windows private working set. Sampled 10 s after first paint with no interaction | Absolute gate on the macOS and Linux runners; trend gate on Windows |
+| Idle memory, one typical doc open | **≤ 150 MB** macOS · **≤ 175 MB** Linux · **≤ 200 MB** Windows (accepted) | Sum over **all** app processes, including webview helpers. macOS `phys_footprint`, Windows private working set. **Linux: the app's own memory (anonymous + private dirty, excluding shared file-backed library pages; ADR-026)**, PSS is reported but not gated. Sampled 10 s after first paint with no interaction | Absolute gate on the macOS and Linux runners; trend gate on Windows |
 | Large-document memory (§1.2) | **≤ 400 MB** peak and **≤ 250 MB** settled (idle 10 s after a full scroll) across all processes, for each large benchmark file; engine and renderer each **≤ 120 MB** settled | Same accounting as idle memory, sampled during and after a scripted full scroll, a search of the whole document, and 50 edits | Absolute gate on macOS and Linux; trend on Windows |
 | Startup cost per feature | **Zero** work before first paint for non-core features | A startup trace (`tracing` spans) records subsystem initialization before first paint | Fail if any subsystem not on the startup allowlist initializes before first paint. Initial JS bundle ≤ **200 KB gzipped** (fail above); any single lazy chunk ≤ 150 KB gzipped (warn) |
 
@@ -61,8 +87,17 @@ text and images, ~4 MB (generated, §14).
 **Accepted by the owner:**
 - Idle memory of 200 MB on Windows and 175 MB on Linux. The webview process
   floor is WebView2 at ~80–120 MB and WebKitGTK at ~70–100 MB.
-- AppImage ≤ 100 MB.
-- `.deb` and `.rpm` stay ≤ 50 MB.
+- `.deb` and `.rpm` stay ≤ 50 MB. (The earlier AppImage ≤ 100 MB allowance
+  was withdrawn, ADR-027.)
+
+**Linux accounting (ADR-026, owner 2026-10-02).** Spike 0.1 measured the bare
+shell at 260 MB PSS on the headless CI runner (Xvfb, llvmpipe), 185 MB with
+`WEBKIT_DISABLE_DMABUF_RENDERER=1`. About 125 to 144 MB of that is shared
+file-backed library pages (WebKitGTK, GTK, Mesa) that PSS charges in full when
+no other app maps them; anonymous memory is 59 MB (flag on) to 111 MB (default).
+The Linux gate therefore counts anonymous + private dirty pages only, the
+175 MB budget stays, and the app sets the flag at startup if unset. A run on a
+real-GPU desktop (X11 and Wayland) still needs the owner's hardware.
 
 The optional Windows "offline" installer (it bundles a fixed WebView2
 runtime, ~180 MB) is exempt and labelled as such. Spike 0.1 measures the bare
@@ -100,7 +135,7 @@ grows. If qpdf's object table dominates on `large-objects.pdf`, the fallback
 is to open the engine's `QPDF` lazily per operation for view-only documents.
 This is decided from the measurement, not assumed.
 
-### 1.3 Size and startup estimate for the base install (to be verified in Spike 0.1)
+### 1.3 Size and startup estimate for the base install (Spike 0.1 measured the bare shell: dmg 2.0 MB, msi 2.6 MB, NSIS 1.7 MB, deb/rpm 2.0 MB, launch 0.35 s on the reference Mac, initial JS 45 KB gzipped; the rest of this table is still an estimate)
 
 | Part | Est. on disk | Notes |
 |---|---|---|
@@ -194,7 +229,7 @@ papyrine/
 ├── Cargo.toml / package.json (pnpm)   # workspaces
 ├── crates/
 │   ├── papyrine-core/        # ids, errors, geometry, units, progress, cancellation, startup trace
-│   ├── qpdf-sys/          # vendored qpdf + C++ shim (cxx bridge) — §4.1
+│   ├── qpdf-sys/          # qpdf (built from pinned tarballs) + C++ shim (cxx bridge) — §4.1
 │   ├── papyrine-cos/         # safe Rust API over the shim; RepairLog; object serializer
 │   ├── papyrine-content/     # content-stream lexer/parser/serializer (+ interpreter, v0.2)
 │   ├── papyrine-model/       # typed model: pages, annots, AcroForm, outlines, …
@@ -211,7 +246,7 @@ papyrine/
 │   └── papyrine-app/         # the single binary: role dispatch, CLI (clap)
 ├── apps/desktop/          # Tauri config + src-tauri (host role) + src (React UI)
 ├── components/            # sources/build recipes for optional components
-├── third_party/           # vendored native sources + native.toml (license manifest)
+├── third_party/           # fetch script + native.toml (pins, SHA-256, license manifest); cache/ is untracked (ADR-033)
 ├── fuzz/  bench/  tools/  docs/
 └── corpus/                # manifest.toml + fetch scripts ONLY (files never committed, ADR-017)
 ```
@@ -245,7 +280,7 @@ The gate that enforces this:
 - a test calls the shim's `QPDFCryptoProvider::getRegisteredImpls()` and
   asserts it returns exactly `["native"]`;
 - bundle inspection fails on `libgnutls*`, `libssl*` and `libcrypto*`;
-- the vendored-build CMake cache is checked in CI (§12).
+- the CMake cache of the qpdf build (from the pinned tarball) is checked in CI (§12).
 
 **Mechanism:** qpdf's **C API** where it is sufficient, plus a thin **C++
 shim** compiled into `qpdf-sys` and bridged with the [`cxx`] crate (typed,
@@ -409,7 +444,14 @@ The original is never touched on failure.
 - A priority queue with cancellation (`FPDF_RenderPageBitmap_Start` with a
   pause callback).
 - Transport over the `papyrine://` scheme as raw RGBA, decoded with
-  `createImageBitmap` (ADR-009).
+  `createImageBitmap` (ADR-009). Spike 0.1/0.2 proved the format: opaque RGBA,
+  512 x 512 = 1 MiB, composited on white so premultiplied equals straight alpha;
+  render flags `FPDF_ANNOT | FPDF_REVERSE_BYTE_ORDER | FPDF_RENDER_LIMITEDIMAGECACHE`
+  (ADR-035). On Windows the URL is `http://papyrine.localhost/...` (ADR-037).
+- `pdfium-render` is used only as the loader and raw bindings; progressive
+  rendering and the custom file reader call PDFium directly (ADR-035).
+- A background warm-up render after first paint absorbs PDFium's one-time font
+  initialisation (first tile 21 to 26 ms in a fresh process).
 
 **Caches, sized to the memory budget:**
 - L1 decoded tiles in the broker: soft cap 48 MB, trimmed to visible tiles
@@ -437,7 +479,16 @@ edit, and RSS, as functions of `k` (1–64) and section size (1 KB–64 MB).
 **Targets:** edit → visible tile updated < 100 ms p95, and renderer RSS
 growth < 10 MB over a 500-edit session.
 
-**Fallback if B1 misses: command mirroring.** Frequent edits (annotations,
+**B1 result (Spike 0.2, renderer-only, macOS M4, ADR-029):** re-open 0.01 to
+0.17 ms (20 pages) and 0.4 to 0.6 ms (2,000 pages, 50.8 MB) for k = 1 to 64,
+about 2.5 us per section and independent of section size. A 500-edit session
+with L1 merge at k > 16 gave edit to tile p95 0.8 ms (20 pages) and 7.7 to
+11.9 ms (2,000 pages), footprint growth at most 1.0 MB. The snapshot-section
+design is adopted. The numbers exclude the qpdf commit, IPC and transport; the
+1,000-page image-heavy file, Windows and Linux are not yet measured.
+
+**Fallback if B1 misses: command mirroring (not adopted for now, ADR-029; kept
+as documented here).** Frequent edits (annotations,
 page rotate/move/delete, form values) are also applied directly to PDFium's
 in-memory document through its edit APIs (`FPDFAnnot_*`, `FPDF_MovePages`,
 `FPDFPage_SetRotation`, `FPDFAnnot_SetStringValue` for form values), so the
@@ -824,7 +875,9 @@ not core is initialized on first use, not at launch:
   - Nightly fuzzing.
 - **E2E:** `tauri-driver` WebDriver on Windows and Linux. On macOS,
   Playwright against the real engine via a dev-only bridge.
-- **Release:** per-arch `.dmg`, `.msi`/NSIS, `.deb`/`.rpm`/Flatpak/AppImage,
+- **Release:** per-arch `.dmg`, `.msi`/NSIS, `.deb`/`.rpm`/Flatpak (no
+  AppImage: Tauri's AppImage bundles GnuTLS, nettle/hogweed, OpenSSL and
+  libcups, banned by ADR-015; ADR-027). Flatpak uses the runtime's WebKitGTK;
   plus components as signed `.papyrine-component` assets. Code signing is wired
   but skipped until certificates exist.
 
@@ -867,8 +920,11 @@ Printing is never done by the webview.
 
 My v2 estimate of "~1 week" was wrong. It didn't count Windows, which has
 no OS PDF printing, or the test infrastructure. Advanced printing (N-up,
-booklet, poster, …) stays in v0.8. The v0.1 vs v0.1.x decision is yours
-(ROADMAP 1.17).
+booklet, poster, …) stays in v0.8. **Decided (ADR-028, 2026-10-02):**
+macOS and Linux printing ship in v0.1 (about 12 to 14 days including the shared
+pipeline and their CI virtual printers); Windows ships in v0.1.x, because EMF
+printing is the costliest part and cannot be verified on the reference Mac. It
+gets CI virtual-printer coverage ("Microsoft Print to PDF").
 
 ### 11.3 Scanning
 WIA/TWAIN, ImageCaptureCore, and SANE (runtime-only).
@@ -917,7 +973,8 @@ WIA/TWAIN, ImageCaptureCore, and SANE (runtime-only).
 
 **Shipped dependencies:** permissive only. Allowlist: MIT, Apache-2.0,
 BSD-2/3, ISC, Zlib, MPL-2.0, Unicode-3.0, FTL, IJG, libpng, BSL-1.0, CC0,
-OFL-1.1 (fonts only).
+OFL-1.1 (fonts only), and **LicenseRef-AGG-2.3** (Anti-Grain Geometry 2.3,
+bundled in PDFium; native manifest only, ADR-032).
 
 **Banned in shipped artifacts:**
 - GPL and AGPL at any level.
@@ -974,10 +1031,10 @@ licenses are to be confirmed by the gate when each is added.
 | Dependency | Purpose | License | v |
 |---|---|---|---|
 | Tauri 2 (+ dialog, window-state plugins) | App shell | MIT/Apache-2.0 | 0.1 |
-| qpdf ≥ 12 (vendored) + zlib-ng + libjpeg-turbo | Object layer, repair, rewrite, linearize, encrypt | Apache-2.0 · Zlib · IJG/BSD-3/Zlib | 0.1 |
+| qpdf 12.4.2 (pinned tarball) + zlib 1.3.2 + libjpeg-turbo 3.2.0 | Object layer, repair, rewrite, linearize, encrypt | Apache-2.0 · Zlib · IJG/BSD-3/Zlib | 0.1 |
 | cxx | Rust ⇄ C++ shim bridge | MIT/Apache-2.0 | 0.1 |
 | *(own code)* AF-subset recognizer + formatter | Tokenizer and strict recognizer for form scripts (ADR-006); **no third-party JS parser** | MIT/Apache-2.0 (ours) | 0.1 |
-| PDFium (prebuilt, no V8/XFA) + pdfium-render | Rendering, text, form widgets | BSD-3/Apache-2.0 + sub-licenses (§12) · MIT/Apache-2.0 | 0.1 |
+| PDFium 156.0.8076.0 (prebuilt, no V8/XFA) + pdfium-render 0.9.4 (loader and raw bindings only) | Rendering, text, form widgets | BSD-3/Apache-2.0 + sub-licenses (§12) · MIT/Apache-2.0 | 0.1 |
 | ipc-channel, serde, postcard, serde_json, ts-rs | IPC and types | MIT/Apache-2.0 · MIT | 0.1 |
 | tokio, rayon, crossbeam, parking_lot | Async and parallelism | MIT/Apache-2.0 | 0.1 |
 | notify, blake3, crc32c, zstd | Watching, hashing, journal | CC0/MIT/Apache · CC0/Apache · MIT/Apache · MIT/BSD | 0.1 |
@@ -1070,7 +1127,7 @@ The corpus is never committed:
 | qpdf and PDFium disagree on damaged files | Render base = qpdf's repaired ID-preserving write when repair occurred |
 | Snapshot re-open cost | B1 first; compaction L1/L2; command-mirroring fallback with qpdf as sole truth (§4.6) |
 | Double memory for large docs (qpdf + PDFium) | Shared mmap, no heap copies, capped caches, large-document memory gate (§1.2) |
-| Form JS without V8 | ADR-006: native AF subset + Adobe-boilerplate recognizer in v0.1 (measured: 125/134 sampled JS forms, 14/23 excluding IRS); QuickJS component later |
+| Form JS without V8 | ADR-006: native AF subset + Adobe-boilerplate recognizer in v0.1 (measured on 391 real-world JS forms: 99.6% of IRS-type forms, 62% of the rest; ADR-030); QuickJS component later |
 | Paragraph text editing | v0.4; layout analysis + rustybuzz; de-risking prototypes earlier |
 | Lossy JBIG2 character substitution (the Xerox incident) | Lossless generic-region by default in every preset; lossy symbol mode only as explicit opt-in (ADR-018) |
 | Webview memory floor | Measured in Spike 0.1; per-OS budgets (§1.2) |

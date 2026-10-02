@@ -9,7 +9,11 @@
 //!
 //! Input formats (all JSON, produced by measurement scripts):
 //!   launch.json  {"cold_ms": 850, "warm_ms": 400}
-//!   memory.json  {"idle_mb": 140}        (sum over all app processes)
+//!   memory.json  {"idle_mb": 140}        (sum over all app processes; macOS phys_footprint,
+//!                                         Windows private working set)
+//!                {"idle_anon_mb": 70}    (Linux: the app's own memory, anonymous + private
+//!                                         dirty, excluding shared file-backed library
+//!                                         pages; ADR-026. "idle_pss_mb" is informational)
 //!   large.json   [{"file":"2000p.pdf","peak_mb":380,"settled_mb":200,"engine_mb":100,"renderer_mb":90}]
 //!   trace.json   {"spans":[{"name":"subsystem.window","t_ms":3.1}],"first_paint_ms":120}
 //!   history.json {"cold_ms":[...],"idle_mb":[...]}   (rolling samples from earlier main runs)
@@ -40,7 +44,6 @@ enum Platform {
 fn kind_of(name: &str) -> Option<(&'static str, u64)> {
     let n = name.to_ascii_lowercase();
     let k = [
-        (".appimage", "appimage", 100 * MB),
         (".dmg", "dmg", 50 * MB),
         (".msi", "msi", 50 * MB),
         (".exe", "exe", 50 * MB),
@@ -155,6 +158,12 @@ fn check_installers(
             .unwrap()
             .to_string_lossy()
             .into_owned();
+        if name.to_ascii_lowercase().ends_with(".appimage") {
+            report.fail(format!(
+                "{name}: AppImage is not a shipped format (ADR-027): it bundles GnuTLS, nettle, OpenSSL and libcups, which ADR-015 bans"
+            ));
+            continue;
+        }
         let Some((kind, limit)) = kind_of(&name) else {
             report.note(format!("{name}: not an installer type; ignored"));
             continue;
@@ -316,10 +325,20 @@ fn check_launch(ctx: &Ctx, v: &Value, history: Option<&Value>, report: &mut Repo
 }
 
 fn check_memory(ctx: &Ctx, v: &Value, history: Option<&Value>, report: &mut Report) {
-    let Some(idle) = v["idle_mb"].as_f64() else {
-        report.fail("memory.json has no idle_mb");
+    // Linux gates the app's own memory (anonymous + private dirty); PSS counts shared
+    // library pages the app does not own (ADR-026).
+    let key = if ctx.platform == Platform::Linux {
+        "idle_anon_mb"
+    } else {
+        "idle_mb"
+    };
+    let Some(idle) = v[key].as_f64() else {
+        report.fail(format!("memory.json has no {key}"));
         return;
     };
+    if let Some(pss) = v["idle_pss_mb"].as_f64() {
+        report.note(format!("idle PSS {pss:.0} MB (informational, not gated)"));
+    }
     let limit = match ctx.platform {
         Platform::Macos => 150.0,
         Platform::Linux => 175.0,
@@ -332,7 +351,7 @@ fn check_memory(ctx: &Ctx, v: &Value, history: Option<&Value>, report: &mut Repo
                 "WARN idle memory {idle:.0} MB over {limit:.0} MB; Windows is trend-gated"
             ));
         }
-        trend("idle memory", idle, history, "idle_mb", report);
+        trend("idle memory", idle, history, key, report);
     } else if idle > limit {
         report.fail(format!("idle memory {idle:.0} MB exceeds {limit:.0} MB"));
     }
@@ -533,10 +552,7 @@ mod tests {
 
     #[test]
     fn installer_kinds() {
-        assert_eq!(
-            kind_of("Papyrine_1.0_amd64.AppImage").map(|k| k.0),
-            Some("appimage")
-        );
+        assert!(kind_of("Papyrine_1.0_amd64.AppImage").is_none());
         assert_eq!(kind_of("a.dmg").map(|k| k.1), Some(50 * MB));
         assert!(kind_of("notes.txt").is_none());
     }

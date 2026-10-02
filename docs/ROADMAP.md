@@ -1,7 +1,18 @@
 # Papyrine — Roadmap
 
-Status: **Draft v3** (direction approved; revision 3 applies the second
-review) · Last updated: 2026-09-30
+Status: **Draft v4** (direction approved; revision 4 records the Step 0
+results) · Last updated: 2026-10-02
+
+**Revision 4 (Step 0 results, 2026-10-02; see
+[STEP_0_REPORT.md](STEP_0_REPORT.md)):**
+- Step 0 tasks 0.1, 0.2 (renderer half) and 0.4 are done and linked below;
+  0.3 and the qpdf large-file memory run are pending in Wave 2.
+- Linux memory is gated on the app's own memory and the app sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` (ADR-026).
+- AppImage is dropped; Linux ships .deb, .rpm and Flatpak (ADR-027).
+- Printing (1.17): macOS + Linux in v0.1, Windows in v0.1.x (ADR-028).
+- The snapshot-section design is confirmed; command mirroring is not adopted
+  (ADR-029). The v0.1 forms plan is confirmed (ADR-030).
 
 **Revision 3:**
 - v0.1 shrunk to the owner's list. The CLI, multi-document search, facing
@@ -54,10 +65,10 @@ ADRs, and each spike ends with a short report in `docs/spikes/`.
 | Task | What | Exit criteria |
 |---|---|---|
 | 0.0 | Product name | **Done:** Papyrine (ADR-019). Repo renamed |
-| 0.1 | Bare Tauri 2 window + static tile on macOS, Windows and Linux | Measured installer size (dmg, msi, deb, rpm, AppImage, Flatpak), cold/warm launch, and idle memory of the bare shell per OS. If the bare shell alone breaks a budget, **stop and report to the owner** |
-| 0.2 | qpdf C++ shim (via `cxx`, native crypto) + incremental section writer prototype + PDFium custom reader over a shared mmap. **Benchmark B1** (ARCHITECTURE §4.6) and a **first large-document memory run** (§1.2) | B1 report: re-open time and RSS vs number of sections `k` and section size, on the large and typical files. Compaction thresholds fixed, or the command-mirroring fallback adopted (with its consistency tests, §4.6). qpdf and PDFium per-process memory on the four large files. **Nothing else builds on snapshots until this is done** |
-| 0.3 | qpdf vs lopdf on the corpus | Open and repair success, peak RSS, time to first object. Confirms or reopens ADR-002 |
-| 0.4 | Form scripts: the full-corpus measurement + an AF behaviour reference | Rust recognizer prototype run over the whole corpus's JS forms (not just the 134-form sample in ADR-006), with results broken down by source. Reference outputs for ≥ 200 AF formatting cases captured from Acrobat Reader (the owner runs a provided form, or public reference tables are used). Confirms the v0.1 forms plan |
+| 0.1 | Bare Tauri 2 window + static tile on macOS, Windows and Linux | Measured installer size (dmg, msi, deb, rpm, Flatpak), cold/warm launch, and idle memory of the bare shell per OS. If the bare shell alone breaks a budget, **stop and report to the owner**. **Done 2026-10-02:** [report](spikes/0.1-tauri-shell.md). Linux idle memory broke the budget under PSS accounting; the owner changed the accounting and dropped AppImage (ADR-026, ADR-027). Flatpak size not yet measured (v0.1 packaging) |
+| 0.2 | qpdf C++ shim (via `cxx`, native crypto) + incremental section writer prototype + PDFium custom reader over a shared mmap. **Benchmark B1** (ARCHITECTURE §4.6) and a **first large-document memory run** (§1.2) | B1 report: re-open time and RSS vs number of sections `k` and section size, on the large and typical files. Compaction thresholds fixed, or the command-mirroring fallback adopted (with its consistency tests, §4.6). qpdf and PDFium per-process memory on the four large files. **Nothing else builds on snapshots until this is done**. **Done 2026-10-02 for the renderer half (B1):** [report](spikes/0.2-b1-renderer.md); snapshot design confirmed, mirroring not adopted (ADR-029). The qpdf-side large-file memory run is **pending (Wave 2)**. Built along the way: `qpdf-sys`/`papyrine-cos` (46 s cold build, 39 tests, fuzz target), `papyrine-render`, `papyrine-core`, `papyrine-content` |
+| 0.3 | qpdf vs lopdf on the corpus | Open and repair success, peak RSS, time to first object. Confirms or reopens ADR-002. **Pending (Wave 2);** ADR-002 stands until it reports. Corpus tooling is done: [corpus report](spikes/corpus.md) (2,971 files / 179 MB manifest, 80 generated files) |
+| 0.4 | Form scripts: the full-corpus measurement + an AF behaviour reference | Rust recognizer prototype run over the whole corpus's JS forms (not just the 134-form sample in ADR-006), with results broken down by source. Reference outputs for ≥ 200 AF formatting cases captured from Acrobat Reader (the owner runs a provided form, or public reference tables are used). Confirms the v0.1 forms plan. **Done 2026-10-02:** [report](spikes/0.4-form-scripts.md); plan confirmed (ADR-030). 415 JS forms measured: 99.6% IRS-type, 62% other; 501 AF reference cases, none from a running Acrobat (the owner's Acrobat check of 7 deviations is open, ADR-031) |
 
 ---
 
@@ -278,9 +289,14 @@ v0.1 features appear in the UI; everything else is post-MVP.
   - A revoked key in `keyring.json` is rejected.
   - The request carries no identifiers (checked in the proxy log).
 
-### 1.17 Printing: **owner decision pending** (estimate in ARCHITECTURE §11.2)
-- Basic print on all three platforms is **21–26 working days (~4–5
-  weeks)**:
+### 1.17 Printing: **decided: macOS + Linux in v0.1, Windows in v0.1.x** (ADR-028; estimate in ARCHITECTURE §11.2)
+- **Decision (2026-10-02, option (c)):** v0.1 prints on macOS and Linux
+  (3–4 + 4–5 days, plus the shared pipeline 4–5 days and CI virtual printers
+  for those two). Windows printing moves to v0.1.x because EMF printing is the
+  costliest part (8–10 days) and cannot be verified on the reference Mac; it
+  gets CI virtual-printer coverage ("Microsoft Print to PDF").
+- Estimate for all three platforms, for reference:
+  **21–26 working days (~4–5 weeks)**:
   - macOS 3–4 days (PDFKit, vector);
   - Windows 8–10 days (Win32 dialog; the sandboxed renderer produces EMF and
     the host plays it into the printer DC);
@@ -288,10 +304,10 @@ v0.1 features appear in the UI; everything else is post-MVP.
     in Flatpak);
   - shared pipeline 4–5 days;
   - CI virtual printers 2 days.
-- The options:
-  - (a) all in v0.1;
-  - (b) all in v0.1.x;
-  - (c) macOS + Linux in v0.1 and Windows in v0.1.x.
+- The options were (a) all in v0.1, (b) all in v0.1.x, and **(c) macOS +
+  Linux in v0.1 and Windows in v0.1.x (chosen)**.
+- **AC (v0.1):** a print job on macOS and Linux produces the expected pages
+  through the CI virtual printer (CUPS-PDF; `NSPrintInfo` save disposition).
 
 ### 1.18 Release
 - Unsigned installers within budgets.
@@ -311,7 +327,9 @@ v0.1 features appear in the UI; everything else is post-MVP.
 - **Stamps:** static built-ins (Approved, Draft, Confidential, Final, Not
   Approved).
 - **Split every N pages**, with naming templates.
-- **Printing,** if the owner picks option (b) or (c) in 1.17.
+- **Windows printing** (decision (c) in 1.17, ADR-028): Win32 `PrintDlgEx`, EMF
+  from the sandboxed renderer, banded raster fallback, CI virtual-printer
+  coverage.
 - Each item ships with the same AC standard (round trip, interop, E2E,
   budgets).
 

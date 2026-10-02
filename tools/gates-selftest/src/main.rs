@@ -377,10 +377,10 @@ fn budget_fixtures(h: &mut Harness) {
         true,
         &run(h, &["--platform", "macos", "--installer", &s(&over)]),
     );
-    let appimage = big_in_named(&d, "appimage", "Papyrine.AppImage", 80);
+    let appimage = big_in_named(&d, "appimage", "Papyrine.AppImage", 20);
     h.record(
-        "budgets: 80 MB AppImage (limit 100)",
-        false,
+        "budgets: AppImage is not a shipped format (ADR-027)",
+        true,
         &run(h, &["--platform", "linux", "--installer", &s(&appimage)]),
     );
 
@@ -474,6 +474,25 @@ fn budget_fixtures(h: &mut Harness) {
         "budgets: idle memory 180 MB (macOS)",
         true,
         &run(h, &["--platform", "macos", "--memory", &s(&mem_bad)]),
+    );
+    let lmem_ok = d.join("lmem_ok.json");
+    write(&lmem_ok, r#"{"idle_anon_mb":110,"idle_pss_mb":260}"#);
+    let lmem_bad = d.join("lmem_bad.json");
+    write(&lmem_bad, r#"{"idle_anon_mb":180,"idle_pss_mb":260}"#);
+    h.record(
+        "budgets: Linux own memory 110 MB (PSS 260 not gated)",
+        false,
+        &run(h, &["--platform", "linux", "--memory", &s(&lmem_ok)]),
+    );
+    h.record(
+        "budgets: Linux own memory 180 MB",
+        true,
+        &run(h, &["--platform", "linux", "--memory", &s(&lmem_bad)]),
+    );
+    h.record(
+        "budgets: Linux memory.json without idle_anon_mb",
+        true,
+        &run(h, &["--platform", "linux", "--memory", &s(&mem_ok)]),
     );
     h.record(
         "budgets: idle memory 180 MB (Windows, trend only)",

@@ -4,10 +4,11 @@ A lightweight, fast, offline-first, open-source desktop PDF editor for Windows, 
 Linux. It aims for full parity with professional PDF suites, and its flagship
 feature is a best-in-class PDF compression and optimization engine.
 
-> **Status:** planning. Architecture draft v3 is under review; Step 0 (de-risking spikes) starts on approval. No application code yet.
+> **Status:** early development. Step 0 (de-risking spikes) is done apart from two Wave 2 items (see the [Step 0 report](docs/STEP_0_REPORT.md)); v0.1 (the MVP) is in progress. There is no usable release yet.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Step 0 report](docs/STEP_0_REPORT.md)
 - [Decisions (ADRs)](docs/DECISIONS.md)
 
 ## Principles

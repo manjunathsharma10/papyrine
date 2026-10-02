@@ -8,8 +8,10 @@
 // Launch time = wall clock from just before spawn() to the host receiving the
 // UI's first-tile-painted event (printed as epoch_ms when PAPYRINE_TRACE=1).
 // Idle memory = sum over every process of the app (including webview helpers)
-// 'idle-secs' after first paint: macOS phys_footprint, Linux PSS, Windows
-// private working set.
+// 'idle-secs' after first paint: macOS phys_footprint, Windows private working
+// set. Linux: the GATED figure counts the app's own memory only (anonymous +
+// private dirty pages, excluding shared file-backed library pages; ADR-026);
+// PSS is still recorded for information.
 
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync, existsSync } from "node:fs";
@@ -106,6 +108,7 @@ function appPids(rootPid, baseline = new Set()) {
 function memoryBytes(pids) {
   const per = {};
   const pssSplit = {};
+  const own = {}; // Linux only: anonymous + private dirty, the gated figure
   if (platform === "darwin") {
     const dir = mkdtempSync(join(tmpdir(), "fp-"));
     for (const pid of pids) {
@@ -127,7 +130,9 @@ function memoryBytes(pids) {
         const name = readFileSync(`/proc/${pid}/comm`, "utf8").trim();
         const anon = Number(t.match(/^Pss_Anon:\s+(\d+) kB/m)?.[1] ?? 0);
         const file = Number(t.match(/^Pss_File:\s+(\d+) kB/m)?.[1] ?? 0);
+        const privDirty = Number(t.match(/^Private_Dirty:\s+(\d+) kB/m)?.[1] ?? 0);
         per[`${name}[${pid}]`] = kb * 1024;
+        own[`${name}[${pid}]`] = Math.max(anon, privDirty) * 1024;
         pssSplit[name] = `anon ${(anon / 1024).toFixed(1)} MB, file-backed ${(file / 1024).toFixed(1)} MB`;
       } catch {
         /* exited */
@@ -146,7 +151,8 @@ function memoryBytes(pids) {
     }
   }
   const total = Object.values(per).reduce((a, b) => a + b, 0);
-  return { total, per, pssSplit };
+  const ownTotal = platform === "linux" ? Object.values(own).reduce((a, b) => a + b, 0) : total;
+  return { total, ownTotal, per, own, pssSplit };
 }
 
 // ---- launching ------------------------------------------------------------------
@@ -264,7 +270,7 @@ async function main() {
     const dir = resolve(args["bundle-dir"]);
     const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() && !e.name.endsWith(".app") ? walk(join(d, e.name)) : [join(d, e.name)]));
     result.artifacts = walk(dir)
-      .filter((p) => /\.(dmg|app|msi|exe|deb|rpm|AppImage)$/.test(p))
+      .filter((p) => /\.(dmg|app|msi|exe|deb|rpm|flatpak)$/.test(p))
       .map((p) => ({ file: p.slice(dir.length + 1), bytes: dirSize(p) }));
   }
 
@@ -295,7 +301,15 @@ async function main() {
     };
     const idleRuns = [];
     for (let i = 0; i < Number(args["idle-runs"] ?? 3); i++) idleRuns.push((await launchOnce(bin, { idle: true })).memory);
-    if (idleRuns.length) result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), breakdownLastRun: idleRuns.at(-1).per, pssSplitLastRun: idleRuns.at(-1).pssSplit };
+    if (idleRuns.length) result.idle = { secsAfterPaint: idleSecs, totalsBytes: idleRuns.map((m) => m.total), medianBytes: median(idleRuns.map((m) => m.total)), ownTotalsBytes: idleRuns.map((m) => m.ownTotal), medianOwnBytes: median(idleRuns.map((m) => m.ownTotal)), breakdownLastRun: idleRuns.at(-1).per, pssSplitLastRun: idleRuns.at(-1).pssSplit };
+  }
+
+  if (result.idle) {
+    // Input for tools/check-budgets --memory. idle_mb is the gated figure:
+    // Linux = own memory (anon + private dirty), macOS/Windows = the platform figure.
+    const mb = (b) => Math.round((b / MB) * 10) / 10;
+    result.memoryGate = { idle_mb: mb(result.idle.medianOwnBytes) };
+    if (platform === "linux") (result.memoryGate.idle_anon_mb = mb(result.idle.medianOwnBytes), (result.memoryGate.idle_pss_mb = mb(result.idle.medianBytes)));
   }
 
   result.launchRetries = retries;
@@ -319,7 +333,12 @@ function summary(r) {
   if (r.occludedFallbacks) L.push(`- runs where no animation frame arrived (window occluded) and the 'drawn' stamp was used: ${r.occludedFallbacks}`);
   if (r.helperAttributionByDelta) L.push(`- WebKit helpers attributed by 'new since launch' (responsibility API gave none) in ${r.helperAttributionByDelta} idle runs; may include unrelated WebKit processes started meanwhile`);
   if (r.idle) {
-    L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes: median ${(r.idle.medianBytes / MB).toFixed(1)} MB (runs: ${r.idle.totalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
+    if (r.platform === "linux") {
+      L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes, GATED own memory (anon + private dirty): median ${(r.idle.medianOwnBytes / MB).toFixed(1)} MB (runs: ${r.idle.ownTotalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
+      L.push(`- idle PSS (informational, includes shared library pages): median ${(r.idle.medianBytes / MB).toFixed(1)} MB`);
+    } else {
+      L.push(`- idle memory ${r.idle.secsAfterPaint}s after paint, all processes: median ${(r.idle.medianBytes / MB).toFixed(1)} MB (runs: ${r.idle.totalsBytes.map((b) => (b / MB).toFixed(1)).join(", ")})`);
+    }
     for (const [k, v] of Object.entries(r.idle.pssSplitLastRun ?? {})) L.push(`  - PSS split ${k}: ${v}`);
     for (const [k, v] of Object.entries(r.idle.breakdownLastRun)) L.push(`  - ${k}: ${(v / MB).toFixed(1)} MB`);
   }

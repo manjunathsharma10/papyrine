@@ -64,7 +64,20 @@ fn ui_error(message: String) {
     }
 }
 
+/// Linux: WebKitGTK's DMABUF renderer costs ~75 MB on the bare shell (measured,
+/// Spike 0.1; ADR-026), so turn it off unless the user or packager set it. Must
+/// run before the webview (and any thread) starts.
+#[cfg(target_os = "linux")]
+fn linux_webkit_env() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: called first thing in main(), before any other thread exists.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    linux_webkit_env();
     START.get_or_init(Instant::now);
     if std::env::var_os("PAPYRINE_TRACE").is_some() {
         println!("PAPYRINE_TRACE main_start epoch_ms={}", epoch_ms());

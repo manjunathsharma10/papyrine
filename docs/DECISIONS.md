@@ -3,7 +3,11 @@
 Each ADR has a status (Proposed / Accepted / Superseded), context, decision
 and consequences. Once an ADR is **Accepted**, it is never edited, only
 superseded. Proposed ADRs may be revised during review; revision 2 applied the owner's
-first review and revision 3 the second (2026-09-30).
+first review and revision 3 the second (2026-09-30). Revision 4 (2026-10-02)
+records the Step 0 results as ADR-026 to ADR-041. The owner delegated these
+decisions on 2026-10-02, so they are Accepted; the items needing the owner's
+hardware are listed in [STEP_0_REPORT.md](STEP_0_REPORT.md). Amendments to
+earlier ADRs are made by a new ADR ("Amends ADR-0xx"), not by editing the old one.
 
 | # | Title | Status |
 |---|---|---|
@@ -11,8 +15,8 @@ first review and revision 3 the second (2026-09-30).
 | 002 | qpdf via C API + C++ shim is the only object model; lopdf rejected | Proposed |
 | 003 | Tauri 2 + Rust + React/TypeScript | Accepted |
 | 004 | Single multi-role executable; host + engine + **one** renderer | Proposed |
-| 005 | Render snapshots + compaction, benchmark first; mirroring keeps qpdf as truth | Proposed (rev 3) |
-| 006 | Form JavaScript: native AF subset now (measured coverage), component later | Proposed (rev 3) |
+| 005 | Render snapshots + compaction, benchmark first; mirroring keeps qpdf as truth | Proposed (rev 3); confirmed and amended by ADR-029 |
+| 006 | Form JavaScript: native AF subset now (measured coverage), component later | Proposed (rev 3); confirmed and amended by ADR-030 |
 | 007 | Pure-Rust text shaping and fonts | Proposed |
 | 008 | LGPL/GPL software only as optional runtime integrations or test oracles | Proposed |
 | 009 | Tiles, √2 zoom buckets, raw RGBA transport, budget-sized caches | Proposed |
@@ -31,7 +35,27 @@ first review and revision 3 the second (2026-09-30).
 | 022 | Opt-in security update check | Proposed |
 | 023 | Signing-key custody and rotation | Proposed |
 | 024 | Code signing and notarization of downloadable helpers | Proposed |
-| 025 | Printing via native platform APIs | Proposed (timing: owner) |
+| 025 | Printing via native platform APIs | Proposed; timing decided by ADR-028 |
+| 026 | Linux memory accounting counts the app's own memory; DMABUF renderer off | Accepted (owner, 2026-10-02) |
+| 027 | AppImage dropped; Linux ships .deb, .rpm and Flatpak | Accepted (owner, 2026-10-02) |
+| 028 | Printing timing: macOS + Linux in v0.1, Windows in v0.1.x | Accepted (lead, 2026-10-02) |
+| 029 | Step 0 confirms the snapshot-section design; mirroring fallback not adopted | Accepted |
+| 030 | ADR-006 confirmed by Spike 0.4 coverage; boilerplate fingerprint; execute per script | Accepted |
+| 031 | AF behaviour deviations from PDFium | Accepted (7 cases unverified against Acrobat) |
+| 032 | Licence allowlist adds LicenseRef-AGG-2.3 (native manifest only) | Accepted |
+| 033 | Native libraries: pinned tarballs, Release-profile builds, no pkg-config | Accepted |
+| 034 | qpdf shim error contract | Accepted |
+| 035 | Renderer: pdfium-render as loader and raw bindings only; tile format and flags; warm-up | Accepted |
+| 036 | Launch measurement via LaunchServices; `drawn` and `presented` stages | Accepted |
+| 037 | Windows tile URL and CSP | Accepted |
+| 038 | Frontend toolchain pin | Accepted |
+| 039 | Content-stream round-trip rules; `papyrine-core` has no dependencies | Accepted |
+| 040 | Corpus pinning: Wayback snapshots allowed; operational "malformed" | Accepted |
+| 041 | Gate conventions: native licence-file paths, startup allowlist, MiB | Accepted |
+
+**Pending (Wave 2 of Step 0, 2026-10-02):** Spike 0.3 (qpdf vs lopdf on the
+corpus; it confirms or reopens ADR-002) and the qpdf large-document memory
+run (ARCHITECTURE §1.2). ADR-002 stays as written until they report.
 
 ---
 
@@ -566,7 +590,7 @@ telemetry. Users who didn't opt in rely on release announcements.
 - Stapling allows offline first launch.
 
 ## ADR-025: Printing via native platform APIs
-**Status:** Proposed; **timing is the owner's decision** (ROADMAP 1.17).
+**Status:** Proposed; timing decided by ADR-028 (macOS + Linux in v0.1, Windows in v0.1.x).
 
 **Decision:** printing never uses the webview.
 - The engine produces a normalized "print PDF", with the page subset, print
@@ -587,3 +611,418 @@ Linux 4–5, shared 4–5, test infrastructure 2.
 - Windows is the costliest platform, because it has no OS PDF printing.
 - The quality of print output on macOS and Linux depends partly on Apple's
   and CUPS's PDF handling. The "print as image" option is the escape hatch.
+
+---
+
+## Revision 4 ADRs (Step 0 results, 2026-10-02)
+
+Evidence: [STEP_0_REPORT.md](STEP_0_REPORT.md) and `docs/spikes/`.
+
+## ADR-026: Linux memory accounting counts the app's own memory; DMABUF renderer off
+**Status:** Accepted (owner, 2026-10-02). Amends ADR-010 (idle-memory
+accounting on Linux only).
+
+**Context:** Spike 0.1 found the bare shell at **260 MB PSS** on the Linux CI
+runner against the 175 MB budget. The runner is headless (Xvfb, Mesa llvmpipe,
+no GPU). PSS charges the app the shared WebKitGTK, GTK and Mesa library pages
+in full when no other application on the machine maps them (about 144 MB of
+the 260 MB). Those pages belong to the system, not to Papyrine, and on a
+normal desktop they are shared with other programs.
+
+| Linux CI runner, bare shell | PSS (all processes) | Anonymous | File-backed |
+|---|---|---|---|
+| Default | 260 MB | about 111 MB | about 144 MB |
+| `WEBKIT_DISABLE_DMABUF_RENDERER=1` | 185 MB | about 59 MB | about 125 MB |
+
+**Decision:**
+- The Linux idle-memory and large-document budgets count **the app's own
+  memory only**: anonymous plus private dirty pages, summed over all app
+  processes, excluding shared file-backed library pages. The **175 MB budget
+  stays**. macOS (`phys_footprint`) and Windows (private working set) are
+  unchanged.
+- PSS is still recorded and reported, but is informational.
+- The app sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` at startup on Linux, before
+  the webview starts, **only if the variable is unset** (so a user or packager
+  can override it).
+- The measured figure on the headless runner is 59 to 111 MB anonymous, so the
+  bare shell passes with room for the app.
+- `tools/check-budgets` reads `idle_anon_mb` on Linux; `measure-shell.mjs`
+  emits it as the gated value (`max(Pss_Anon, Private_Dirty)` per process).
+
+**Consequences:**
+- The Linux budget now measures what Papyrine controls and is stable across
+  distributions.
+- It is not a claim about total system footprint. A real-GPU Linux desktop run
+  (X11 and Wayland) is still wanted to confirm the flag does not hurt
+  rendering and that the numbers hold; it needs the owner's hardware.
+- The flag trades GPU-composited WebKit rendering for lower memory; the tile
+  path is a canvas, so this is acceptable. Revisit if scrolling is slow on real
+  hardware.
+
+## ADR-027: AppImage dropped; Linux ships .deb, .rpm and Flatpak
+**Status:** Accepted (owner, 2026-10-02). Amends ADR-010 (removes the AppImage
+budget) and applies ADR-015.
+
+**Context:** Tauri's AppImage bundles the WebKitGTK stack, including
+`libgnutls`, `libnettle`/`libhogweed`, OpenSSL `libcrypto` and `libcups`, all
+banned by ADR-015, and the CI bundle job measured it at **261 MB** against the
+100 MB budget. (The shell spike's own build measured 77 MB; the two builds
+differ in environment and the discrepancy is not reconciled, because the
+licence failure alone decides the matter.) It fails the bundle-inspection gate
+and, in CI, the size budget.
+
+**Decision:**
+- AppImage is **not** a release format. The Linux formats are **.deb, .rpm and
+  Flatpak**. Flatpak uses the runtime's WebKitGTK, which is outside our bundle.
+- `tauri.conf.json` bundle targets exclude `appimage`; `tools/check-budgets`
+  rejects any `.AppImage` input; the 100 MB AppImage budget is removed.
+- .deb and .rpm depend on the distribution's `libwebkit2gtk`, so they stay
+  about 2 MB.
+
+**Consequences:**
+- Users on distributions without .deb/.rpm use the Flatpak.
+- Flatpak packaging (a flatpak-builder manifest, the portal printing path,
+  size measurement) is v0.1 work; no size is claimed yet.
+- If an AppImage is wanted later, it needs a stripped, licence-clean library
+  set and a new ADR superseding this one.
+
+## ADR-028: Printing timing: macOS + Linux in v0.1, Windows in v0.1.x
+**Status:** Accepted (lead, 2026-10-02). Decides the timing left open in
+ADR-025 and ROADMAP 1.17; option (c).
+
+**Context:** the estimate is 21 to 26 working days for all three platforms.
+Windows (EMF from the sandboxed renderer played into the printer DC) is the
+costliest part at 8 to 10 days, and it cannot be verified by hand on the
+reference Mac.
+
+**Decision:**
+- **v0.1:** printing on macOS (PDFKit, 3 to 4 days) and Linux (GTK dialog and
+  CUPS, 4 to 5 days), plus the shared pipeline (4 to 5 days) and the CI
+  virtual printers for those two.
+- **v0.1.x:** Windows printing, with CI virtual-printer coverage (for example
+  Microsoft Print to PDF) because it cannot be hand-verified on the reference
+  Mac.
+- ADR-025 is otherwise unchanged. Printing never uses the webview.
+
+**Consequences:**
+- About 12 to 14 working days of the estimate land in v0.1 instead of 21 to 26.
+- Windows users have no print command in v0.1; the release notes say so.
+
+## ADR-029: Step 0 confirms the snapshot-section design; mirroring fallback not adopted
+**Status:** Accepted. Amends ADR-005 and confirms ARCHITECTURE §4.6.
+
+**Context:** Benchmark B1 (Spike 0.2, renderer half, macOS M4, release build)
+measured PDFium re-opening a document through a custom file reader over the
+shared mapping plus appended incremental sections.
+
+| Measure | Result | ADR-005 target |
+|---|---|---|
+| Re-open, 20 pages, k = 1..64 sections | 0.01 to 0.17 ms | none |
+| Re-open, 2,000 pages (50.8 MB) | **0.4 to 0.6 ms**, about 2.5 us per section, independent of section size | none |
+| Edit to updated tile, 500 edits, 20 pages | p95 0.8 ms | < 100 ms |
+| Edit to updated tile, 500 edits, 2,000 pages | p95 **7.7 to 11.9 ms** (about 12 ms) | < 100 ms |
+| Renderer footprint growth over 500 edits | 0.1 MB (20 pp), **at most 1.0 MB** (2,000 pp) | < 10 MB |
+| First tile in a fresh process | 21 to 26 ms (123 ms cold file cache) | none |
+| Cancel at first poll | about 1.2 ms | none |
+
+**Decision:**
+- The snapshot-section design (L0 per commit, L1 merge, L2 rebase, debounced
+  re-open) is **adopted**. The command-mirroring fallback is **not adopted for
+  now**; its rules stay documented in ARCHITECTURE §4.6 as the fallback should a
+  later measurement fail.
+- Thresholds from ADR-005 stay (L1 merge above 16 sections). B1 shows they are
+  conservative; they may be relaxed after the qpdf-side numbers exist.
+
+**Caveats (so this is not over-read):**
+- The numbers are **renderer-only and macOS-only**. They exclude the qpdf
+  commit, IPC and transport.
+- The test pages are synthetic and cheap to draw, and the section filler is
+  unreferenced, so the matrix mostly shows xref-chain cost.
+- The 1,000-page image-heavy file has not been run through the bench.
+- Windows and Linux are unmeasured. CI jobs for B1 on both are follow-ups.
+
+**Consequences:** every edit exercises the incremental writer; consistency
+between qpdf and PDFium is by construction (same bytes), not by mirrored ops.
+
+## ADR-030: ADR-006 confirmed by Spike 0.4 coverage; boilerplate fingerprint; execute per script
+**Status:** Accepted. Confirms and amends ADR-006.
+
+**Context:** Spike 0.4 ran the recognizer over 1,108 downloaded PDFs from 20
+sources; 415 contain JavaScript (391 real-world, 24 from pdf.js), 21,589
+non-empty scripts. Details: [spikes/0.4-form-scripts.md](spikes/0.4-form-scripts.md).
+
+| Measure | ADR-006 sample (136 forms) | Spike 0.4, real-world (391 forms) |
+|---|---|---|
+| Scripts that are pure allowlisted AF calls | 57% | **72%** (15,518 / 21,589 over all 415) |
+| Forms covered, subset + boilerplate | 93% (125 / 134) | **76%** (298 / 391) |
+| Forms covered, excluding IRS | 61% (14 / 23) | **62%** (151 / 244) |
+| IRS-type forms (IRS, NY, CRA, USCIS, DOL, FDA) | 100% | **99.6%** (249 / 250) |
+
+By source: IRS 147/147, NY 35/35, USCIS 56/57, OPM 19/38, US states 54/88,
+gov.uk 6/27, Home Affairs 0/8, CMS 0/5. Without the boilerplate recognizer
+IRS coverage is 0%. Format and keystroke scripts are covered at 99.6% and
+96.5%. The headline fell from 93% to 76% only because the sample is no longer
+80% IRS; the like-for-like figure is unchanged (61% to 62%). The corpus skews
+to US government forms, so commercial and non-US forms are likely lower.
+
+**Decision (v0.1 plan confirmed):**
+1. v0.1 ships the native AF subset plus the boilerplate recognizer and no JS
+   engine, as ADR-006 decided. The published coverage figures are **99.6%
+   for IRS-type forms and 62% for everything else**.
+2. **Boilerplate fingerprint definition** (amends ADR-006): strings and
+   numbers are normalised, runs of `ADBE.<name> = "<string>";` collapse,
+   FNV-1a over the token stream, **exact match on the whole script**. There are
+   nine known shapes (eight Adobe version/XFA-check shapes plus the inert
+   California `onOpen()` that sets `nocache`/`noautocomplete`). New shapes are
+   added by reading the script, never by loosening the match.
+3. **Execute per script, banner per form:** every accepted script runs;
+   rejected ones stay inert and the banner lists what did not run. Scripts are
+   not disabled for the whole form when one is unsupported. 81% of forms have
+   at least 90% of their scripts covered, and 90% have at least 50%.
+4. **Calculation semantics:** each calculate script runs once per change in
+   `/CO` order; fields outside `/CO` are not recalculated; a throwing script
+   leaves its field unchanged. The host decides when to trigger.
+5. **Before committing to QuickJS (v0.4/v0.5), add the exact-shape pattern
+   tier** (checkbox exclusion and six similar shapes): it lifts real-world
+   coverage to 82% (72% excluding IRS) for a few hundred lines, so the engine
+   is needed for about 18% of forms rather than 24%. This is an upper-bound
+   estimate from regexes, not an implementation. Re-measure first. The
+   field-access and regex/string-method blockers define the component's first
+   targets.
+6. The `form-scripts` component (QuickJS, v0.5) and fallback (a) stay as in
+   ADR-006.
+
+**Consequences:** `papyrine-forms` has no runtime dependencies; the tokenizer,
+recognizer, matcher and classifier add about 50 KB to the binary (about 150 KB
+for the whole crate, over ADR-006's estimate of < 100 KB for the parser alone;
+accepted). "Covered" means the recognizer accepts every script; it says
+nothing about matching Acrobat (ADR-031).
+
+## ADR-031: AF behaviour deviations from PDFium
+**Status:** Accepted; the unverified rows are re-checked against Acrobat
+before 1.0.
+
+**Context:** the AF reference suite has 501 cases (280 from PDFium's BSD tests,
+89 derived from PDFium source, 132 derived by hand from Adobe's API reference;
+**none captured from a running Acrobat**, which was not available). ROADMAP 1.13
+required at least 200. In seven cases PDFium and Papyrine differ on purpose.
+
+**Decision:** Papyrine deliberately differs from PDFium in these cases:
+
+| Case | PDFium | Papyrine |
+|---|---|---|
+| `AFNumber_Format` sepStyle 4 | falls back to style 0 | `1'234'567.89` (Acrobat documents style 4) |
+| `AFNumber_Format` negStyle 1 | no sign, red | `-1,234.50`, red |
+| `AFDate_FormatEx` on non-date `x` | prints today | keep text, invalid-date alert |
+| `AFDate_FormatEx` on `20122015` | falls back to today | keep text, alert |
+| `02/29/2023` | rolls over to 03/01/2023 | rejected, alert (**unverified**) |
+| 12-hour clock, hour 0 | `0:05 am` | `12:05 am` |
+| 12-hour clock, hour 12 | `12:00 am` | `12:00 pm` |
+
+Also: the recognizer rejects extra trailing arguments to AF calls (Acrobat
+ignores them; none occur in the corpus); `AFMergeChange`, `AFMakeNumber` and
+`AFParseDateEx` are library functions only.
+
+**Consequences:** the owner's check of `corpus/cache/generated/acrobat-check.pdf`
+(made by `spikes/forms/make_acrobat_check_form.py`) in Acrobat Reader settles
+the unverified rows, also leap-day rejection, `m/d/yy` fed a four-digit year,
+and half-even rounding of exact ties (`1234.5` with 0 decimals). Until then
+the table above is the specification.
+
+## ADR-032: Licence allowlist adds LicenseRef-AGG-2.3 (native manifest only)
+**Status:** Accepted. Amends the allowlist in ADR-001 / ARCHITECTURE §12.
+
+**Context:** PDFium bundles Anti-Grain Geometry 2.3, a permissive licence with
+no SPDX identifier. The gate rejected it (found independently by the renderer
+and CI engineers).
+
+**Decision:**
+- `LicenseRef-AGG-2.3` is allowed **in the native manifest
+  (`third_party/native.toml`) only**, not for Rust or JS dependencies. The
+  AGG notice is carried in `THIRD_PARTY_LICENSES.md` (ADR-014).
+- The gate implements this as `ALLOWED_NATIVE_ONLY`.
+
+**Consequences:** ARCHITECTURE §12 lists it. No other non-SPDX licence is
+allowed without a new ADR.
+
+## ADR-033: Native libraries: pinned tarballs, Release-profile builds, no pkg-config
+**Status:** Accepted. Amends ARCHITECTURE §2/§12 ("vendored" sources).
+
+**Decision:**
+- Native sources are **not vendored into the repository**. `third_party/fetch`
+  downloads pinned tarballs (qpdf 12.4.2, zlib 1.3.2, libjpeg-turbo 3.2.0) over
+  https, verifies their SHA-256 against `third_party/native.toml`, and extracts
+  to `third_party/cache/src/`. `build.rs` panics with a "run
+  third_party/fetch" message if sources are missing or stale and never uses the
+  network. PDFium comes as pinned prebuilt binaries via `tools/fetch-pdfium`
+  (chromium/8076 = PDFium 156.0.8076.0, SHA-256 pinned per platform).
+- Third-party C++ libraries are **always built with the CMake Release profile**,
+  also in debug builds, because a debug qpdf makes tests too slow.
+- Dependencies are resolved **without pkg-config** (it breaks on paths with
+  spaces and could pick up system copies) and pinned through
+  `CMAKE_PREFIX_PATH`; Homebrew prefixes are ignored.
+- libjpeg-turbo is built with `WITH_SIMD=OFF` for now.
+
+**Consequences:** CI needs `third_party/fetch` and `tools/fetch-pdfium` steps
+before any cargo build of these crates. A cold build of zlib, libjpeg-turbo and
+qpdf takes about 46 s on the M4. The qpdf library adds about 1.3 MB to a
+release binary (grows with API use). Windows MSVC (`/EHsc`, SIMD off) and
+Linux builds of `qpdf-sys` are verified by CI, not by hand.
+
+## ADR-034: qpdf shim error contract
+**Status:** Accepted. Detail for ADR-002.
+
+**Decision:** the C++ shim catches every exception, including `catch (...)`,
+at the boundary and returns `Err("<code>|<message>")`.
+- `<code>` is the `qpdf_error_code_e` value for qpdf errors, **100/101/102**
+  for non-qpdf exceptions, and **110/111** for shim type and range errors.
+- `std::range_error`, `out_of_range` and `length_error` map to **`Damaged`**,
+  since they come from out-of-range numbers read from a damaged file.
+- Warnings are collected per document (`setSuppressWarnings(true)` plus
+  `getWarnings()`), giving message, object id/generation and offset. Warnings
+  from handles with no owning document go to qpdf's global logger, which the
+  shim silences once.
+- Passwords are truncated at an embedded NUL (qpdf takes `char const*`).
+- Writer stream-data modes are `Uncompress`/`Preserve`/`Compress`;
+  `DecodeLevel::None` is omitted because qpdf throws for it on filtered streams.
+
+**Consequences:** the Rust side never sees a C++ exception. A lazy
+`StreamDataProvider`, per-object keys and the AcroForm/outline/page-label
+helpers are follow-ups (`stream_replace` copies for now).
+
+## ADR-035: Renderer: pdfium-render as loader and raw bindings only; tile format and flags; warm-up
+**Status:** Accepted. Amends ADR-009 and ARCHITECTURE §4.
+
+**Decision:**
+1. **`pdfium-render` 0.9.4 (default features off) is used only as the dynamic
+   loader and FFI layer.** Its high-level wrappers hide the progressive-render
+   pause callback and the custom file access that we need
+   (`FPDF_LoadCustomDocument` over the shared mapping, `FPDF_RenderPageBitmap_Start`
+   with a pause callback for cancellation).
+2. **Tile transport is opaque RGBA composited on white** (so premultiplied
+   equals straight alpha), 512 x 512 = 1 MiB per tile. Render flags are
+   `FPDF_ANNOT | FPDF_REVERSE_BYTE_ORDER | FPDF_RENDER_LIMITEDIMAGECACHE`.
+   Form widgets need the form-fill draw pass (`FPDF_FFLDraw`), a follow-up.
+3. **A background render warm-up runs at startup (after first paint)** to
+   absorb PDFium's one-time font initialisation (the first tile in a fresh
+   process takes 21 to 26 ms, 123 ms on a cold file cache). It is a startup
+   allowlist entry only after first paint.
+4. Cancellation is cooperative and returns `Error::Cancelled` in about 1.2 ms.
+
+**Consequences:** the 8-page cache is MRU and a failed re-open keeps the old
+document. On Windows `FPDF_FILEACCESS` uses `c_ulong`, so documents over 4 GB
+fail with `TooLarge` there until a wrapper is added.
+
+## ADR-036: Launch measurement via LaunchServices; `drawn` and `presented` stages
+**Status:** Accepted. Detail for ADR-010 launch gate.
+
+**Decision:**
+- Launch time is the wall clock from just before the launch call to the host
+  receiving the UI's `first_tile_painted` event.
+- The event has two stages: `drawn` (right after `drawImage`) and `presented`
+  (two animation frames later). **The gate uses `presented`**; `drawn` is the
+  fallback when no frame arrives (occluded window).
+- On macOS the `.app` is launched through LaunchServices (`open -n`), like a
+  Finder launch, and WebKit helpers are attributed with the responsibility API
+  (CI falls back to "helpers new since launch").
+- Linux runs are wrapped in `dbus-run-session` (without a session bus every
+  launch took 25 s).
+- "Cold" is approximated by the first launch after a build where
+  `sudo purge` is unavailable; the reference-machine check is repeated each
+  milestone.
+
+**Consequences:** reference Mac measured median 351 ms, p95 383 ms (20 runs)
+under load average 4.3 to 4.5; under load 8 to 13, 0.76 s. Timing runs must
+not share the machine with other heavy jobs.
+
+## ADR-037: Windows tile URL and CSP
+**Status:** Accepted. Amends ADR-009.
+
+**Decision:** on Windows WebView2 maps custom schemes to
+`http://papyrine.localhost/...`; the client builds the tile URL per platform and
+the CSP allows both `papyrine:` and `http://papyrine.localhost` (plus `ipc:` and
+`http://ipc.localhost`).
+
+**Consequences:** the tile protocol handler is one code path; only the URL
+prefix differs.
+
+## ADR-038: Frontend toolchain pin
+**Status:** Accepted.
+
+**Decision:** React 18.3, Vite 7, TypeScript 5.9 (strict), `@vitejs/plugin-react`
+5, pnpm 10 via `packageManager`. Tauri features limited to `wry`,
+`compression` and `common-controls-v6`; no plugins, devtools or tray in the
+shell. Runtime JS dependencies stay at `react`, `react-dom` and
+`@tauri-apps/api`. `bundle.licenseFile` is left unset (it makes `create-dmg`
+fail on its EULA step).
+
+**Consequences:** Vite 8 and TypeScript 7 exist and are deliberately not used
+yet; moving is a dependency PR with the bundle gate as the check. Initial JS
+measured 45.4 KB gzipped against the 200 KB budget.
+
+## ADR-039: Content-stream round-trip rules; `papyrine-core` has no dependencies
+**Status:** Accepted.
+
+**Decision (content streams, `papyrine-content`):**
+- The guarantee `parse(serialize(parse(x))) == parse(x)` holds with
+  `SerializeOptions::lossless()` (shortest `f64` text). The default of 6
+  decimals is exact only for inputs within that precision.
+- Integral numbers always parse as `Int` (`4.`, `4.0`, `4` are identical);
+  comments are dropped on parse.
+- Unterminated inline images are dropped with an error. Operator tokens are
+  printable ASCII only; other bytes become error tokens. Names keep raw high
+  bytes.
+- The inline-image `EI` heuristic looks 6 bytes ahead; a known-length image
+  accepts at most one whitespace byte before `EI`. The serializer emits a NUL
+  separator before `EI` when the last 8 bytes of image data contain "EI".
+- The parser never panics: problems become `ParseError { offset, kind }`.
+
+**Decision (`papyrine-core`):** it has **no dependencies**; errors are
+hand-written and the startup trace is a small std-only recorder. `tracing`
+integration lives in the host or a feature.
+
+**Consequences:** the roundtrip fuzz target found five inline-image bugs, now
+fixed (1.96 M executions clean). Parse throughput is 167 MB/s (lex 362,
+serialize 151) on the M4; per-op `Vec` allocations are the obvious cost if it
+ever needs to be faster.
+
+## ADR-040: Corpus pinning: Wayback snapshots allowed; operational "malformed"
+**Status:** Accepted. Detail for ADR-017.
+
+**Decision:**
+- Every corpus URL is pinned to a commit SHA or, for documents with no
+  versioned home (IRS forms), a **Wayback Machine `id_` raw snapshot**; the
+  SHA-256 is recorded in the manifest. CI must cache `corpus/cache/files`
+  (keyed on the manifest hashes) and `corpus/cache/generated` (keyed on the
+  `gen-corpus` source hash).
+- "Malformed" is defined operationally as "qpdf reports a warning or error"
+  until Papyrine's parser supplies conformance tags.
+- Top-level `corpus/*.toml` manifests are exempt from the 256 KiB rule of
+  `check-no-corpus`; the type and location rules still apply.
+- Government "latest" links go stale: a republished form fails `corpus/fetch`
+  on hash and the manifest is regenerated.
+
+**Consequences:** 2,971 files / 179 MB in `manifest.toml` plus 415 JS forms.
+Wayback is the weak link (106 of 3,386 entries failed with connection refused
+during a cold fetch). Mirroring them needs public hosting, which is an owner
+decision (open item).
+
+## ADR-041: Gate conventions: native licence-file paths, startup allowlist, MiB
+**Status:** Accepted. Detail for ADR-014/015.
+
+**Decision:**
+- Native manifest `license_files` resolve against
+  `third_party/cache/src/<name>-<version>/`; `--require-fetched` makes missing
+  files fatal.
+- Startup allowlist semantics follow `papyrine-core`: only `subsystem.*` spans
+  count, and entries may end in `.*`. The initial entries are provisional.
+- Sizes are binary units (1 MB = 1,048,576 bytes).
+- Rust licences use `cargo-deny`, and notices a purpose-built generator
+  (`tools/gen-notices`), instead of `cargo-about`. The PDFium licence file's
+  `//` comment markers are stripped so notices are byte-identical across
+  platforms.
+
+**Consequences:** `THIRD_PARTY_LICENSES.md` is 247 KB against the 256 KB
+no-corpus limit; it needs a waiver in `tools/check-no-corpus.allow` or a split
+before v0.2 dependencies land (open item, with the `site/package-lock.json`
+waiver).
