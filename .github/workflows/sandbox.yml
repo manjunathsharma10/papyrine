@@ -1,0 +1,85 @@
+name: Sandbox
+
+# ROADMAP 1.9: the sandbox-escape acceptance tests run natively on each OS. Inside each
+# sandbox the child must fail to read ~, write outside its temp dir, open a socket and
+# spawn a process, while PDFium rendering and qpdf loading keep working.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/papyrine-sandbox/**"
+      - "crates/papyrine-ipc/**"
+      - ".github/workflows/sandbox.yml"
+  pull_request:
+    paths:
+      - "crates/papyrine-sandbox/**"
+      - "crates/papyrine-ipc/**"
+      - ".github/workflows/sandbox.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sandbox-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  sandbox:
+    name: sandbox (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-15, pdfium: mac-arm64 }
+          - { name: windows-x64, os: windows-latest, pdfium: win-x64 }
+          - { name: linux-x64, os: ubuntu-24.04, pdfium: linux-x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Linux packages and kernel facts
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+          uname -r
+          cat /sys/kernel/security/lsm || true
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: sandbox-${{ matrix.name }}
+      - name: Native sources cache
+        uses: actions/cache@v4
+        with:
+          path: third_party/cache
+          key: native-${{ matrix.name }}-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
+          restore-keys: native-${{ matrix.name }}-
+      - name: Fetch pinned native sources and PDFium
+        run: |
+          python third_party/fetch
+          python tools/fetch-pdfium --platform ${{ matrix.pdfium }}
+      - name: clippy
+        run: cargo clippy -p papyrine-ipc -p papyrine-sandbox --all-targets -- -D warnings
+      - name: Sandbox and IPC tests
+        run: cargo test -p papyrine-ipc -p papyrine-sandbox -- --nocapture --test-threads=1
+      - name: TypeScript bindings are current
+        if: runner.os == 'Linux'
+        env:
+          PAPYRINE_CHECK_TS: "1"
+        run: cargo test -p papyrine-ipc --test ts_bindings
