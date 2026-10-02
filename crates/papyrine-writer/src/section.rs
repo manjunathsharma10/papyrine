@@ -280,6 +280,11 @@ fn write_xref<W: Write>(
 ) -> Result<u64> {
     chain_free(&mut entries);
     let at = w.pos;
+    if kind == XrefKind::Table && at > 9_999_999_999 {
+        return Err(Error::unsupported(
+            "a classic xref table cannot address offsets beyond 10 GB",
+        ));
+    }
     match kind {
         XrefKind::Table => {
             w.write_all(&table_bytes(&entries))?;

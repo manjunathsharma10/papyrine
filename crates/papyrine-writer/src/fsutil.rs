@@ -34,7 +34,11 @@ pub fn sync_dir(dir: &Path) -> io::Result<()> {
 
 /// Copy permissions, ownership (best effort), extended attributes and ACLs from `from` (the file
 /// being replaced) to `to` (the new file), before the rename.
-pub fn copy_metadata(from: &Path, to: &Path) -> io::Result<()> {
+///
+/// Permissions are mandatory (an error aborts the save). Extended attributes and ACLs are best
+/// effort because some filesystems refuse them; the return value says whether they were all
+/// carried over.
+pub fn copy_metadata(from: &Path, to: &Path) -> io::Result<bool> {
     let meta = fs::metadata(from)?;
     fs::set_permissions(to, meta.permissions())?;
     #[cfg(unix)]
@@ -48,11 +52,15 @@ pub fn copy_metadata(from: &Path, to: &Path) -> io::Result<()> {
         unsafe {
             let _ = libc::fchown(dst.as_raw_fd(), meta.uid(), meta.gid());
         }
-        copy_xattrs(&src, &dst)?;
+        let xattrs_ok = copy_xattrs(&src, &dst).is_ok();
         // chown may have cleared setuid/setgid bits; restore the mode.
         fs::set_permissions(to, meta.permissions())?;
+        Ok(xattrs_ok)
     }
-    Ok(())
+    #[cfg(not(unix))]
+    {
+        Ok(true)
+    }
 }
 
 #[cfg(target_os = "macos")]

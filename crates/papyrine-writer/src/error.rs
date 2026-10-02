@@ -17,6 +17,9 @@ pub enum Error {
     /// The temp file failed validation; the target was not touched.
     #[error("validation failed: {0}")]
     Validation(String),
+    /// A full rewrite would invalidate digital signatures and the user has not agreed.
+    #[error("the document is digitally signed; a full rewrite would invalidate its signatures")]
+    SignedFile,
     #[error("cancelled")]
     Cancelled,
 }

@@ -115,6 +115,9 @@ pub struct SaveOptions<'a> {
     pub faults: Option<&'a mut dyn FaultInjector>,
     /// Skip the exact-prefix comparison against the base (O(file size)).
     pub skip_prefix_check: bool,
+    /// Allow [`save_optimized`] to rewrite a signed document, which invalidates its signatures.
+    /// Set only after the user confirmed (see [`Decision`]).
+    pub break_signatures: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,8 +167,9 @@ pub fn save_incremental<'a>(
     let outcome = atomic_replace(
         target,
         |tmp| {
-            // `fs::copy` clones on APFS / uses copy_file_range on Linux, so a save does not
-            // rewrite a large file.
+            // `fs::copy` clones on APFS (only onto a path that does not exist yet) and uses
+            // copy_file_range on Linux, so a save does not rewrite a large file.
+            fs::remove_file(tmp)?;
             fs::copy(base, tmp)?;
             let mut f = File::options().append(true).open(tmp)?;
             if f.metadata()?.len() != base_len {
@@ -246,6 +250,17 @@ pub fn save_full(
     })
 }
 
+/// A trailer rebuilt from a damaged file can lack `/Size`, and qpdf's writer then copies the
+/// gap into its output, producing a file qpdf itself calls damaged. Give it one.
+fn ensure_trailer_size(doc: &Document) -> Result<()> {
+    let trailer = doc.trailer()?;
+    if !trailer.dict_has("Size")? {
+        let max = doc.object_ids()?.iter().map(|i| i.num).max().unwrap_or(0);
+        trailer.dict_set("Size", &doc.new_int(i64::from(max) + 1))?;
+    }
+    Ok(())
+}
+
 /// Optimized full rewrite through qpdf's writer. Object numbers change: the returned report
 /// carries the old-to-new map.
 pub fn save_optimized(
@@ -254,6 +269,10 @@ pub fn save_optimized(
     write_opts: &WriteOptions,
     opts: SaveOptions<'_>,
 ) -> Result<SaveReport> {
+    if !opts.break_signatures && has_signatures(doc)? {
+        return Err(Error::SignedFile);
+    }
+    ensure_trailer_size(doc)?;
     let mut renumbering = None;
     let outcome = atomic_replace(
         target,

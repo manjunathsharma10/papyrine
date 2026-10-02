@@ -77,6 +77,9 @@ pub struct ReplaceOptions<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReplaceOutcome {
+    /// False when extended attributes or ACLs of the old file could not be carried over (the
+    /// filesystem refused them). Permissions are always carried over or the save fails.
+    pub metadata_preserved: bool,
     /// False when the directory fsync failed after the (complete) rename: the new file is in
     /// place but its durability across power loss is not confirmed.
     pub dir_synced: bool,
@@ -236,6 +239,7 @@ pub fn atomic_replace(
     };
     let tmp = temp_path(&target)?;
 
+    let mut metadata_preserved = true;
     let staged = (|| -> Result<()> {
         fault(Step::CreateTemp)?;
         File::options().write(true).create_new(true).open(&tmp)?;
@@ -247,7 +251,7 @@ pub fn atomic_replace(
         validate_file(&tmp, &opts.validation)?;
         fault(Step::CopyMetadata)?;
         if target.exists() {
-            fsutil::copy_metadata(&target, &tmp)?;
+            metadata_preserved = fsutil::copy_metadata(&target, &tmp)?;
         }
         fault(Step::Rename)?;
         Ok(())
@@ -267,5 +271,8 @@ pub fn atomic_replace(
         .filter(|d| !d.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let dir_synced = fault(Step::SyncDir).is_ok() && fsutil::sync_dir(dir).is_ok();
-    Ok(ReplaceOutcome { dir_synced })
+    Ok(ReplaceOutcome {
+        dir_synced,
+        metadata_preserved,
+    })
 }

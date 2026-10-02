@@ -10,7 +10,11 @@ fn variants() -> Vec<(&'static str, ObjectStreams, Option<EncryptionRevision>)> 
         ("table", ObjectStreams::Disable, None),
         ("objstm", ObjectStreams::Generate, None),
         ("rc4-128", ObjectStreams::Disable, Some(R3)),
-        ("aes-128-objstm", ObjectStreams::Generate, Some(R4 { aes: true })),
+        (
+            "aes-128-objstm",
+            ObjectStreams::Generate,
+            Some(R4 { aes: true }),
+        ),
         ("aes-256-r6", ObjectStreams::Disable, Some(R6)),
     ]
 }
@@ -34,7 +38,10 @@ fn full_write_preserves_every_object_id() {
             )
             .unwrap();
             assert_eq!(report.bytes, out.len() as u64);
-            assert!(!String::from_utf8_lossy(&out).contains("/Prev"), "{name}: no /Prev in a full write");
+            assert!(
+                !String::from_utf8_lossy(&out).contains("/Prev"),
+                "{name}: no /Prev in a full write"
+            );
             let chain = ChainState::scan(out.as_slice()).unwrap();
             assert_eq!((chain.kind, chain.sections), (xref, 1), "{name}");
 
@@ -49,7 +56,11 @@ fn full_write_preserves_every_object_id() {
                     continue;
                 }
                 let disk = re.fingerprint(&re.object(*id).unwrap()).unwrap();
-                assert_eq!(normalized(fp.clone()), normalized(disk), "{name}/{xref:?}: {id}");
+                assert_eq!(
+                    normalized(fp.clone()),
+                    normalized(disk),
+                    "{name}/{xref:?}: {id}"
+                );
             }
             let dir = tempfile::tempdir().unwrap();
             let p = write_tmp(dir.path(), "full.pdf", &out);
@@ -78,11 +89,19 @@ fn full_write_after_edits_then_incremental_on_top() {
     write_full(&doc, &mut base, &FullWriteOptions::default(), &|| false).unwrap();
     let doc2 = open(base.clone(), Some(USER));
     let info = doc2.trailer().unwrap().dict_get("Info").unwrap();
-    info.dict_set("Title", &doc2.new_string("after compaction").unwrap()).unwrap();
+    info.dict_set("Title", &doc2.new_string("after compaction").unwrap())
+        .unwrap();
     let (out, _) = incremental(&doc2, &base, &[info.id().unwrap()], &[]);
     let re = assert_parity(&doc2, out, Some(USER), &[info.id().unwrap()]);
     assert_eq!(
-        re.trailer().unwrap().dict_get("Info").unwrap().dict_get("Title").unwrap().string().unwrap(),
+        re.trailer()
+            .unwrap()
+            .dict_get("Info")
+            .unwrap()
+            .dict_get("Title")
+            .unwrap()
+            .string()
+            .unwrap(),
         b"after compaction"
     );
 }
@@ -99,7 +118,7 @@ fn cancellation_stops_a_full_write() {
 /// an xref stream that describes a page living in an object stream.
 fn hybrid_pdf() -> Vec<u8> {
     let mut o = b"%PDF-1.5\n%\xE2\xE3\xCF\xD3\n".to_vec();
-    let mut offs = vec![0usize; 7];
+    let mut offs = [0usize; 7];
     let mut add = |o: &mut Vec<u8>, n: usize, body: &str| {
         offs[n] = o.len();
         o.extend_from_slice(format!("{n} 0 obj\n{body}\nendobj\n").as_bytes());
@@ -161,7 +180,9 @@ fn hybrid_reference_file_is_extended_with_a_table_section() {
     assert_eq!(chain.kind, XrefKind::Table);
 
     let pages = doc.root().unwrap().dict_get("Pages").unwrap();
-    pages.dict_set("Marker", &doc.new_string("hybrid edit").unwrap()).unwrap();
+    pages
+        .dict_set("Marker", &doc.new_string("hybrid edit").unwrap())
+        .unwrap();
     // Edit the compressed page too: it must move to a top-level object.
     let page = doc.page(0).unwrap();
     page.dict_set("Rotate", &doc.new_int(90)).unwrap();
@@ -177,7 +198,15 @@ fn hybrid_reference_file_is_extended_with_a_table_section() {
     let (out, _) = incremental(&doc, &original, &[pages.id().unwrap()], &[]);
     let re = open(out.clone(), None);
     assert!(re.repair_log().is_empty());
-    assert_eq!(re.page(0).unwrap().dict_get("MediaBox").unwrap().array_len().unwrap(), 4);
+    assert_eq!(
+        re.page(0)
+            .unwrap()
+            .dict_get("MediaBox")
+            .unwrap()
+            .array_len()
+            .unwrap(),
+        4
+    );
     let dir = tempfile::tempdir().unwrap();
     let p = write_tmp(dir.path(), "hybrid.pdf", &out);
     let (code, text) = qpdf_check(&p, None);
@@ -203,15 +232,28 @@ fn optimized_rewrite_returns_a_usable_renumbering() {
     assert_eq!(report.kind, SaveKind::Optimized);
     let map = report.renumbering.unwrap();
     assert!(!map.is_empty());
-    let re = papyrine_cos::Document::open_path(&target, &papyrine_cos::OpenOptions::default()).unwrap();
+    let re =
+        papyrine_cos::Document::open_path(&target, &papyrine_cos::OpenOptions::default()).unwrap();
     assert_eq!(re.page_count().unwrap(), 6);
     // Each page maps to the page at the same index in the rewritten file.
     for (i, page) in doc.pages().unwrap().iter().enumerate() {
         let new = map[&page.id().unwrap()];
         assert_eq!(re.page(i).unwrap().id().unwrap(), new);
     }
-    let info_new = map[&doc.trailer().unwrap().dict_get("Info").unwrap().id().unwrap()];
-    let t = re.object(info_new).unwrap().dict_get("Title").unwrap().string().unwrap();
+    let info_new = map[&doc
+        .trailer()
+        .unwrap()
+        .dict_get("Info")
+        .unwrap()
+        .id()
+        .unwrap()];
+    let t = re
+        .object(info_new)
+        .unwrap()
+        .dict_get("Title")
+        .unwrap()
+        .string()
+        .unwrap();
     assert_eq!(t, b"Original title");
     assert_eq!(qpdf_check(&target, None).0, 0);
     let _: Option<ObjId> = None;
