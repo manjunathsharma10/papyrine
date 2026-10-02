@@ -24,6 +24,19 @@ env:
   RUST_BACKTRACE: "1"
 
 jobs:
+  detect:
+    name: detect optional parts
+    runs-on: ubuntu-24.04
+    outputs:
+      desktop: ${{ steps.d.outputs.desktop }}
+      tauri: ${{ steps.d.outputs.tauri }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: |
+          [ -f apps/desktop/package.json ] && echo desktop=true >> "$GITHUB_OUTPUT" || echo desktop=false >> "$GITHUB_OUTPUT"
+          [ -f apps/desktop/src-tauri/tauri.conf.json ] && echo tauri=true >> "$GITHUB_OUTPUT" || echo tauri=false >> "$GITHUB_OUTPUT"
+
   fmt:
     name: fmt
     runs-on: ubuntu-24.04
@@ -149,7 +162,8 @@ jobs:
   frontend:
     name: frontend
     runs-on: ubuntu-24.04
-    if: ${{ hashFiles('apps/desktop/package.json') != '' }}
+    needs: [detect]
+    if: needs.detect.outputs.desktop == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -174,8 +188,8 @@ jobs:
   bundle:
     name: bundle (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
-    if: ${{ hashFiles('apps/desktop/src-tauri/tauri.conf.json') != '' }}
-    needs: [test]
+    if: needs.detect.outputs.tauri == 'true'
+    needs: [detect, test]
     strategy:
       fail-fast: false
       matrix:
