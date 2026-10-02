@@ -159,6 +159,12 @@ pub struct Report {
 /// threads (Landlock and Seatbelt are inherited by new threads; on Linux the
 /// seccomp filter is synchronised to existing threads, Landlock is not).
 pub fn apply_child_sandbox(profile: &Profile) -> Result<Report> {
+    // Windows confinement is fixed by the parent at CreateProcess; the child neither uses the
+    // paths nor could canonicalise them (an AppContainer cannot open the directories above its
+    // temp dir), and the host already normalised the profile when it spawned us.
+    #[cfg(windows)]
+    let p = profile.clone();
+    #[cfg(not(windows))]
     let p = profile.normalized()?;
     #[cfg(target_os = "macos")]
     return macos::apply(&p);
