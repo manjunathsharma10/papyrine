@@ -122,7 +122,7 @@ jobs:
           tool: cargo-deny
       - uses: pnpm/action-setup@v4
         if: hashFiles('apps/desktop/package.json') != ''
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: hashFiles('apps/desktop/package.json') != ''
         with:
           node-version: 24
@@ -170,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -224,7 +224,7 @@ jobs:
         with:
           key: bundle-${{ matrix.name }}
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
