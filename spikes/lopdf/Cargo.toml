@@ -1,0 +1,16 @@
+# Spike 0.3 (throwaway): lopdf probe for the qpdf-vs-lopdf comparison.
+# Not a workspace member; see docs/spikes/0.3-qpdf-vs-lopdf.md.
+[package]
+name = "lopdf-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+lopdf = "0.45"
+
+[profile.release]
+opt-level = 3
+panic = "unwind"

@@ -1,0 +1,20 @@
+# Large-document memory probe (ARCHITECTURE 1.2, Spike 0.2) and qpdf side of the
+# Spike 0.3 comparison. Standalone: not a workspace member.
+[package]
+name = "memprobe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+papyrine-cos = { path = "../../crates/papyrine-cos" }
+papyrine-render = { path = "../../crates/papyrine-render" }
+memmap2 = "0.9"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
