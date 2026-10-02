@@ -142,6 +142,9 @@ fn main() {
     let mut jcfg = cmake::Config::new(&jpeg.dir);
     if msvc {
         jcfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", msvc_runtime);
+        // libjpeg-turbo otherwise forces the static CRT (/MT), which clashes with rustc's /MD
+        // (LNK4098) and would give the process two heaps.
+        jcfg.define("WITH_CRT_DLL", if crt_static { "0" } else { "1" });
     }
     jcfg.out_dir(out.join("jpeg-build"))
         .profile(profile)
