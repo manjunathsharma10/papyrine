@@ -1,0 +1,16 @@
+&[
+    // Adobe viewer-version / XFA-check document scripts (names from the
+    // `!ADBE::` name-tree keys they ship under). Verified by reading the
+    // scripts from IRS, OPM and New York State forms in the Spike 0.4 corpus.
+    (0x975480f6f0e63521, "adobe: VersChkStrings (typeof guard)"),
+    (0xb574130629a364ab, "adobe: VersChkStrings (== undefined guard)"),
+    (0xbf1fc9535c74eac5, "adobe: VersChkVars (Reader+Viewer, XFA 2.8)"),
+    (0xe1789ac0e2e98e66, "adobe: VersChkVars (Reader+Viewer, XFA 1.6)"),
+    (0x022b31b243ac2e0b, "adobe: VersChkVars (Reader only, Acrobat 6)"),
+    (0xef1b69cd89f0c8a9, "adobe: VersChkCode_XFACheck (2.8)"),
+    (0x26aac60c0eddfad5, "adobe: VersChkCode_XFACheck (2.1)"),
+    (0x8501f9de08fa2e55, "adobe: VersChkCode_ADSRE (Reader 6)"),
+    // Not Adobe's, but inert: sets two document properties that only affect
+    // caching and autofill hints (California FTB forms).
+    (0x09ebc0dd511f3a6d, "benign: onOpen() { nocache; noautocomplete }"),
+]

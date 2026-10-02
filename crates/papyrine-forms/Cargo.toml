@@ -1,0 +1,13 @@
+[package]
+name = "papyrine-forms"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Native AcroForm JavaScript subset: strict recognizer and Rust implementations of the Acrobat AF* functions"
+
+[dependencies]
+
+[lints]
+workspace = true
