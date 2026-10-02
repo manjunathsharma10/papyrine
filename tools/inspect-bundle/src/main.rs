@@ -20,6 +20,8 @@ struct Config {
     first_party: Vec<String>,
     #[serde(default)]
     banned_waivers: Vec<String>,
+    #[serde(default)]
+    installer_internal: Vec<String>,
     macos: Macos,
     linux: Sys,
     windows: Sys,
@@ -360,6 +362,7 @@ fn main() -> ExitCode {
         {
             report.fail(format!("banned file '{rel}' (matches '{p}')"));
         }
+        let internal_file = cfg.installer_internal.iter().any(|p| glob_match(p, &rel));
         let ext = f
             .extension()
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
@@ -367,7 +370,7 @@ fn main() -> ExitCode {
         if is_shared_lib_name(&base) {
             let appimage_stack =
                 is_appimage && cfg.linux.system.iter().any(|p| glob_match(p, &base));
-            if !allowed_bundled(&base) && !appimage_stack {
+            if !allowed_bundled(&base) && !appimage_stack && !internal_file {
                 report.fail(format!(
                     "bundled library '{rel}' is not listed in native.toml `provides` or first_party"
                 ));
@@ -420,7 +423,7 @@ fn main() -> ExitCode {
                     || cfg.linux.system.iter().any(|p| glob_match(p, libname))
                     || cfg.windows.system.iter().any(|p| glob_match(p, libname))
             };
-            if !ok {
+            if !ok && !internal_file {
                 report.fail(format!(
                     "{rel} links '{lib}', which is not in native.toml or the system allowlist"
                 ));

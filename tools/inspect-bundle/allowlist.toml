@@ -14,6 +14,10 @@ banned_symbol_prefixes = ["gnutls_", "SSL_", "EVP_"]
 # Bundled libraries built from this repository.
 first_party = ["libpapyrine*", "papyrine*"]
 
+# Installer scaffolding (NSIS plug-ins unpacked from the setup .exe), not part of the installed app.
+# Still checked for banned names and symbols, but exempt from the "listed library" rule.
+installer_internal = ["$PLUGINSDIR/*"]
+
 # Banned-name waivers (empty by default). Add a pattern only together with an ADR.
 banned_waivers = []
 
@@ -45,6 +49,6 @@ system = [
   "ucrtbase.dll", "vcruntime140*.dll", "msvcp140*.dll", "concrt140.dll", "wintrust.dll",
   "ncrypt.dll", "winhttp.dll", "iphlpapi.dll", "mswsock.dll", "dnsapi.dll", "normaliz.dll",
   "wldap32.dll", "oleacc.dll", "msimg32.dll", "opengl32.dll", "api-ms-win-*", "ext-ms-*",
-  "webview2loader.dll", "winspool.drv", "wtsapi32.dll", "powrprof.dll", "ntmarta.dll",
+  "webview2loader.dll", "wsock32.dll", "winspool.drv", "wtsapi32.dll", "powrprof.dll", "ntmarta.dll",
   "mfplat.dll", "avrt.dll", "dwrite.dll", "d2d1.dll", "windowscodecs.dll", "coremessaging.dll",
 ]
