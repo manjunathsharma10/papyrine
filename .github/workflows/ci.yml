@@ -94,6 +94,10 @@ jobs:
       - name: Fetch PDFium
         run: |
           if [ -f tools/fetch-pdfium ]; then python tools/fetch-pdfium --platform ${{ matrix.pdfium }}; else echo "tools/fetch-pdfium not present yet"; fi
+      # The native stack goes first so a lint in some other crate cannot hide a build or link
+      # failure of qpdf/PDFium on a platform. Corpus acceptance tests run in the full pass below.
+      - name: native stack (qpdf-sys, papyrine-cos) build and tests
+        run: cargo test -p qpdf-sys -p papyrine-cos --lib --tests -- --skip corpus_
       - name: clippy (-D warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
