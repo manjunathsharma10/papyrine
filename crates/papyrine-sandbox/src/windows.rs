@@ -1,64 +1,64 @@
-//! Windows: restricted primary token + low integrity level + Job object.
+//! Windows: AppContainer + Job object (restricted token + low integrity as a
+//! degraded fallback).
 //!
 //! Windows restrictions are fixed when the process is created, so the *parent*
 //! must use [`spawn_restricted`]; [`apply`] (called in the child through
 //! `apply_child_sandbox`) verifies that the child really is confined and adds
 //! process mitigation policies that can only be set from inside.
 //!
-//! What the confinement gives (see the integration tests):
-//! * restricted token: all privileges dropped, every group but a short list
-//!   deny-only, restricting SIDs `Everyone`/`Users`/`Authenticated Users`/
-//!   `RESTRICTED`, so objects whose ACL names only the user (the profile, `~`)
-//!   are unreadable even though the user SID is still in the token;
-//! * low integrity: no writes to anything labelled medium or higher;
-//! * Job object: one process at most (no children), memory cap, UI limits,
-//!   kill-on-close (the host dying takes the child with it).
+//! **AppContainer** (default). The child's token is a Low-integrity
+//! AppContainer token with no capabilities. That is what denies, with no
+//! further setup, every object whose ACL does not name the container: the
+//! user's profile and files, the registry, the network (no `internetClient`,
+//! and loopback is isolated), and other processes. System DLLs stay loadable
+//! because the OS directories grant `ALL APPLICATION PACKAGES`. The host
+//! grants the container read access to the allowlisted directories
+//! ([`Profile::read_dirs`]) and full access to the per-child temp directory
+//! (created by [`create_child_dir`]).
 //!
-//! Network access: the Untrusted integrity level is what refuses `socket()`
-//! (no access to the AFD device); the integration test pins that behaviour.
+//! **Job object** (both modes): at most one process (no children), the
+//! profile's memory cap, UI restrictions, and kill-on-close so the host
+//! dying takes the child with it. `PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY`
+//! additionally makes `CreateProcess` fail inside the child.
+//!
+//! **Restricted-token fallback** (only if the profile has `require_enforced`
+//! false and AppContainer creation fails): privileges dropped, deny-only
+//! groups, restricting SIDs, Untrusted integrity. It protects files but
+//! *cannot* block sockets; the child reports that in `Report::degraded`.
 
 use crate::{Error, Profile, Report, Result};
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString, c_void};
 use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
+use std::sync::Mutex;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Security::Authorization::*;
+use windows_sys::Win32::Security::Isolation::DeriveAppContainerSidFromAppContainerName;
 use windows_sys::Win32::Security::*;
-use windows_sys::Win32::System::Console::{
-    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-};
+use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 use windows_sys::Win32::System::JobObjects::*;
 use windows_sys::Win32::System::Threading::*;
 
 const SE_GROUP_LOGON_ID: u32 = 0xC000_0000;
 const SE_GROUP_INTEGRITY: u32 = 0x20;
+const PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES: usize = 0x0002_0009;
+const PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY: usize = 0x0002_000E;
+const PROCESS_CREATION_CHILD_PROCESS_RESTRICTED: u32 = 1;
+
+/// Name of the AppContainer; the SID is derived from it, no profile is created.
+const APPCONTAINER_NAME: &str = "Papyrine.Sandbox.Child";
+
+/// Integrity level of the restricted-token fallback (Untrusted).
+const FALLBACK_INTEGRITY_RID: u32 = 0;
 
 /// `PROCESS_MITIGATION_CHILD_PROCESS_POLICY` (not exposed by windows-sys).
 #[repr(C)]
 struct ChildProcessPolicy {
     flags: u32,
-}
-
-/// The integrity level children run at. `Untrusted` (RID 0) cannot open the
-/// AFD endpoint, which is what refuses `socket()`; `Low` is 0x1000.
-const CHILD_INTEGRITY_RID: u32 = 0;
-
-/// Experiment switches while the Windows profile is being tuned on CI
-/// (`PAPYRINE_WIN_VARIANT=lowil,nouilimit,norestrict,nodisable`). Removed once
-/// the profile is settled.
-fn variant(name: &str) -> bool {
-    std::env::var("PAPYRINE_WIN_VARIANT").is_ok_and(|v| v.split(',').any(|x| x == name))
-}
-
-fn integrity_rid_for_children() -> u32 {
-    if variant("lowil") {
-        0x1000
-    } else {
-        CHILD_INTEGRITY_RID
-    }
 }
 
 fn last_err(what: &str) -> io::Error {
@@ -77,7 +77,13 @@ fn own(h: HANDLE) -> OwnedHandle {
 
 // ------------------------------------------------------------ sid helpers
 
-struct Sid(*mut c_void);
+enum SidAlloc {
+    LocalAlloc,
+    FreeSid,
+}
+
+struct Sid(*mut c_void, SidAlloc);
+
 impl Sid {
     fn from_str(s: &str) -> io::Result<Sid> {
         let w = wide(OsStr::new(s));
@@ -86,19 +92,61 @@ impl Sid {
         if unsafe { ConvertStringSidToSidW(w.as_ptr(), &mut p) } == 0 {
             return Err(last_err("ConvertStringSidToSidW"));
         }
-        Ok(Sid(p))
+        Ok(Sid(p, SidAlloc::LocalAlloc))
+    }
+
+    fn app_container() -> io::Result<Sid> {
+        let name = wide(OsStr::new(APPCONTAINER_NAME));
+        let mut p: *mut c_void = null_mut();
+        // SAFETY: valid name and out pointer.
+        let hr = unsafe { DeriveAppContainerSidFromAppContainerName(name.as_ptr(), &mut p) };
+        if hr < 0 {
+            return Err(io::Error::other(format!(
+                "DeriveAppContainerSidFromAppContainerName: HRESULT {hr:#x}"
+            )));
+        }
+        Ok(Sid(p, SidAlloc::FreeSid))
+    }
+
+    fn to_string(&self) -> io::Result<String> {
+        let mut p: *mut u16 = null_mut();
+        // SAFETY: valid sid; out pointer.
+        if unsafe { ConvertSidToStringSidW(self.0, &mut p) } == 0 {
+            return Err(last_err("ConvertSidToStringSidW"));
+        }
+        let mut n = 0;
+        // SAFETY: NUL-terminated wide string from the OS.
+        while unsafe { *p.add(n) } != 0 {
+            n += 1;
+        }
+        let s = String::from_utf16_lossy(
+            // SAFETY: n valid elements.
+            unsafe { std::slice::from_raw_parts(p, n) },
+        );
+        // SAFETY: LocalAlloc'd by the API.
+        unsafe { LocalFree(p.cast()) };
+        Ok(s)
     }
 }
+
 impl Drop for Sid {
     fn drop(&mut self) {
-        // SAFETY: allocated by ConvertStringSidToSidW (LocalAlloc).
-        unsafe { LocalFree(self.0) };
+        match self.1 {
+            // SAFETY: allocated by ConvertStringSidToSidW (LocalAlloc).
+            SidAlloc::LocalAlloc => unsafe {
+                LocalFree(self.0);
+            },
+            // SAFETY: allocated by DeriveAppContainerSid... (FreeSid).
+            SidAlloc::FreeSid => unsafe {
+                FreeSid(self.0);
+            },
+        }
     }
 }
 
-// ------------------------------------------------------------ token
+// ------------------------------------------------------------ token (fallback)
 
-/// Groups kept enabled in the child token (everything else becomes deny-only).
+/// Groups kept enabled in the fallback token (everything else becomes deny-only).
 const KEEP_GROUPS: &[&str] = &["S-1-1-0", "S-1-5-32-545", "S-1-5-11", "S-1-5-4", "S-1-2-0"];
 /// Restricting SIDs: the object must also grant access to one of these.
 const RESTRICTING: &[&str] = &["S-1-1-0", "S-1-5-32-545", "S-1-5-11", "S-1-5-12"];
@@ -115,7 +163,7 @@ fn token_info(tok: HANDLE, class: TOKEN_INFORMATION_CLASS) -> io::Result<Vec<u8>
     Ok(buf)
 }
 
-fn make_child_token() -> io::Result<OwnedHandle> {
+fn make_fallback_token() -> io::Result<OwnedHandle> {
     let mut cur: HANDLE = null_mut();
     // SAFETY: current process pseudo handle; out pointer.
     if unsafe {
@@ -194,8 +242,7 @@ fn make_child_token() -> io::Result<OwnedHandle> {
     }
     let restricted = own(out);
 
-    // Integrity level.
-    let il = Sid::from_str(&format!("S-1-16-{}", integrity_rid_for_children()))?;
+    let il = Sid::from_str(&format!("S-1-16-{FALLBACK_INTEGRITY_RID}"))?;
     let label = TOKEN_MANDATORY_LABEL {
         Label: SID_AND_ATTRIBUTES {
             Sid: il.0,
@@ -232,9 +279,6 @@ fn make_job(profile: &Profile) -> io::Result<OwnedHandle> {
         | JOB_OBJECT_LIMIT_ACTIVE_PROCESS
         | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
     ext.BasicLimitInformation.ActiveProcessLimit = 1;
-    if variant("noproclimit") {
-        ext.BasicLimitInformation.LimitFlags &= !JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
-    }
     if let Some(limit) = profile.memory_limit {
         ext.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PROCESS_MEMORY;
         ext.ProcessMemoryLimit = limit as usize;
@@ -261,9 +305,6 @@ fn make_job(profile: &Profile) -> io::Result<OwnedHandle> {
             | JOB_OBJECT_UILIMIT_SYSTEMPARAMETERS
             | JOB_OBJECT_UILIMIT_WRITECLIPBOARD,
     };
-    if variant("nouilimit") {
-        return Ok(job);
-    }
     // SAFETY: struct matches the class.
     if unsafe {
         SetInformationJobObject(
@@ -277,6 +318,86 @@ fn make_job(profile: &Profile) -> io::Result<OwnedHandle> {
         return Err(last_err("SetInformationJobObject(ui)"));
     }
     Ok(job)
+}
+
+// ------------------------------------------------------------ ACL grants
+
+static GRANTED: Mutex<Option<HashSet<(PathBuf, String)>>> = Mutex::new(None);
+
+/// Give `sid` read+execute on `path` (inherited by everything below it).
+/// Idempotent per process; the OS directories already grant `ALL APPLICATION
+/// PACKAGES`, so this is needed only for the build/component directories.
+fn grant_read(path: &Path, sid: &Sid) -> io::Result<()> {
+    let key = (path.to_path_buf(), sid.to_string()?);
+    {
+        let mut g = GRANTED.lock().unwrap_or_else(|p| p.into_inner());
+        if !g.get_or_insert_with(HashSet::new).insert(key) {
+            return Ok(());
+        }
+    }
+    let w = wide(path.as_os_str());
+    let mut old_dacl: *mut ACL = null_mut();
+    let mut sd: *mut c_void = null_mut();
+    // SAFETY: valid path; out pointers.
+    let rc = unsafe {
+        GetNamedSecurityInfoW(
+            w.as_ptr(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            &mut old_dacl,
+            null_mut(),
+            &mut sd,
+        )
+    };
+    if rc != 0 {
+        return Err(io::Error::from_raw_os_error(rc as i32));
+    }
+    let ea = EXPLICIT_ACCESS_W {
+        grfAccessPermissions: 0x0012_00A9, // FILE_GENERIC_READ | FILE_GENERIC_EXECUTE
+        grfAccessMode: GRANT_ACCESS,
+        grfInheritance: SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+        Trustee: TRUSTEE_W {
+            pMultipleTrustee: null_mut(),
+            MultipleTrusteeOperation: NO_MULTIPLE_TRUSTEE,
+            TrusteeForm: TRUSTEE_IS_SID,
+            TrusteeType: TRUSTEE_IS_UNKNOWN,
+            ptstrName: sid.0.cast(),
+        },
+    };
+    let mut new_dacl: *mut ACL = null_mut();
+    // SAFETY: one valid entry; old DACL valid until LocalFree(sd).
+    let rc = unsafe { SetEntriesInAclW(1, &ea, old_dacl, &mut new_dacl) };
+    let result = if rc != 0 {
+        Err(io::Error::from_raw_os_error(rc as i32))
+    } else {
+        // SAFETY: valid path and DACL.
+        let rc = unsafe {
+            SetNamedSecurityInfoW(
+                w.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                new_dacl,
+                null_mut(),
+            )
+        };
+        if rc != 0 {
+            Err(io::Error::from_raw_os_error(rc as i32))
+        } else {
+            Ok(())
+        }
+    };
+    // SAFETY: both allocated by the APIs above.
+    unsafe {
+        if !new_dacl.is_null() {
+            LocalFree(new_dacl.cast());
+        }
+        LocalFree(sd);
+    }
+    result.map_err(|e| io::Error::new(e.kind(), format!("grant read on {}: {e}", path.display())))
 }
 
 // ------------------------------------------------------------ spawn
@@ -296,6 +417,8 @@ pub struct RestrictedChild {
     process: OwnedHandle,
     pid: u32,
     _job: OwnedHandle,
+    /// `"appcontainer"` or `"restricted-token"` (degraded).
+    pub mechanism: &'static str,
 }
 
 impl RestrictedChild {
@@ -376,9 +499,59 @@ fn env_block(overrides: &[(OsString, OsString)]) -> Vec<u16> {
     blk
 }
 
+/// Start `req.exe` confined according to `req.profile`.
+///
+/// AppContainer first; if that is impossible and the profile does not
+/// `require_enforced`, the restricted-token fallback (no network denial).
 pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
+    match spawn_appcontainer(req) {
+        Ok(c) => Ok(c),
+        Err(e) if !req.profile.require_enforced => {
+            eprintln!("papyrine-sandbox: AppContainer unavailable ({e}); using restricted token");
+            spawn_with_token(req)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn spawn_appcontainer(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
+    let ac = Sid::app_container()?;
+    // The OS directories grant ALL APPLICATION PACKAGES; ours need an explicit grant.
+    for d in &req.profile.read_dirs {
+        grant_read(d, &ac)?;
+    }
+    for f in &req.profile.read_files {
+        grant_read(f, &ac)?;
+    }
+    if let Some(d) = req.exe.parent() {
+        grant_read(d, &ac)?;
+    }
+    let caps = SECURITY_CAPABILITIES {
+        AppContainerSid: ac.0,
+        Capabilities: null_mut(),
+        CapabilityCount: 0,
+        Reserved: 0,
+    };
+    launch(req, None, Some(&caps), "appcontainer")
+}
+
+fn spawn_with_token(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
+    let token = make_fallback_token()?;
+    launch(
+        req,
+        Some(token.as_raw_handle() as HANDLE),
+        None,
+        "restricted-token",
+    )
+}
+
+fn launch(
+    req: &SpawnRequest<'_>,
+    token: Option<HANDLE>,
+    caps: Option<&SECURITY_CAPABILITIES>,
+    mechanism: &'static str,
+) -> io::Result<RestrictedChild> {
     let profile = req.profile;
-    let token = make_child_token()?;
     let job = make_job(profile)?;
 
     let mut cmd: Vec<u16> = Vec::new();
@@ -394,9 +567,8 @@ pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
 
     // Explicit inheritance list (plus std handles so test output stays visible).
     // SAFETY: GetStdHandle has no preconditions.
-    let (hin, hout, herr) = unsafe {
+    let (hout, herr) = unsafe {
         (
-            GetStdHandle(STD_INPUT_HANDLE),
             GetStdHandle(STD_OUTPUT_HANDLE),
             GetStdHandle(STD_ERROR_HANDLE),
         )
@@ -411,72 +583,102 @@ pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
             list.push(h);
         }
     }
-    let _ = hin;
 
+    let count: u32 = 2 + u32::from(caps.is_some());
     let mut size = 0usize;
     // SAFETY: size query (expected to "fail" with insufficient buffer).
-    unsafe { InitializeProcThreadAttributeList(null_mut(), 1, 0, &mut size) };
+    unsafe { InitializeProcThreadAttributeList(null_mut(), count, 0, &mut size) };
     let mut attr_buf = vec![0u8; size];
     let attrs = attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST;
     // SAFETY: buffer of the size requested above.
-    if unsafe { InitializeProcThreadAttributeList(attrs, 1, 0, &mut size) } == 0 {
+    if unsafe { InitializeProcThreadAttributeList(attrs, count, 0, &mut size) } == 0 {
         return Err(last_err("InitializeProcThreadAttributeList"));
     }
-    // SAFETY: `list` outlives the CreateProcess call.
-    if unsafe {
-        UpdateProcThreadAttribute(
-            attrs,
-            0,
+    let child_policy: u32 = PROCESS_CREATION_CHILD_PROCESS_RESTRICTED;
+    let result = (|| {
+        let set = |attr: usize, v: *const c_void, len: usize| -> io::Result<()> {
+            // SAFETY: the value outlives the CreateProcess call.
+            if unsafe { UpdateProcThreadAttribute(attrs, 0, attr, v, len, null_mut(), null()) } == 0
+            {
+                Err(last_err("UpdateProcThreadAttribute"))
+            } else {
+                Ok(())
+            }
+        };
+        set(
             PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-            list.as_ptr() as *const c_void,
+            list.as_ptr().cast(),
             list.len() * std::mem::size_of::<HANDLE>(),
-            null_mut(),
-            null(),
-        )
-    } == 0
-    {
-        return Err(last_err("UpdateProcThreadAttribute"));
-    }
+        )?;
+        set(
+            PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY,
+            (&child_policy as *const u32).cast(),
+            std::mem::size_of::<u32>(),
+        )?;
+        if let Some(c) = caps {
+            set(
+                PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+                (c as *const SECURITY_CAPABILITIES).cast(),
+                std::mem::size_of::<SECURITY_CAPABILITIES>(),
+            )?;
+        }
 
-    // SAFETY: zeroed STARTUPINFOEXW with cb set is valid.
-    let mut si: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
-    si.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
-    si.lpAttributeList = attrs;
-    if valid(hout) || valid(herr) {
-        si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
-        si.StartupInfo.hStdInput = null_mut();
-        si.StartupInfo.hStdOutput = if valid(hout) { hout } else { null_mut() };
-        si.StartupInfo.hStdError = if valid(herr) { herr } else { null_mut() };
-    }
-    // SAFETY: zeroed PROCESS_INFORMATION is an out parameter.
-    let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
-    // SAFETY: every pointer references live, NUL-terminated buffers.
-    let ok = unsafe {
-        CreateProcessAsUserW(
-            token.as_raw_handle() as HANDLE,
-            exe.as_ptr(),
-            cmd.as_mut_ptr(),
-            null(),
-            null(),
-            1,
-            EXTENDED_STARTUPINFO_PRESENT
-                | CREATE_SUSPENDED
-                | CREATE_UNICODE_ENVIRONMENT
-                // No console: a console subsystem child would need conhost.exe, which the
-                // one-process job limit forbids (it fails with 0xC0000142).
-                | DETACHED_PROCESS,
-            env.as_ptr().cast(),
-            cwd.as_ptr(),
-            &si.StartupInfo,
-            &mut pi,
-        )
-    };
-    let err = (ok == 0).then(|| last_err("CreateProcessAsUserW"));
+        // SAFETY: zeroed STARTUPINFOEXW with cb set is valid.
+        let mut si: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
+        si.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
+        si.lpAttributeList = attrs;
+        if valid(hout) || valid(herr) {
+            si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+            si.StartupInfo.hStdInput = null_mut();
+            si.StartupInfo.hStdOutput = if valid(hout) { hout } else { null_mut() };
+            si.StartupInfo.hStdError = if valid(herr) { herr } else { null_mut() };
+        }
+        // SAFETY: zeroed PROCESS_INFORMATION is an out parameter.
+        let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+        // No console: a console-subsystem child would need conhost.exe, which the
+        // one-process job limit forbids (it fails with 0xC0000142).
+        let flags = EXTENDED_STARTUPINFO_PRESENT
+            | CREATE_SUSPENDED
+            | CREATE_UNICODE_ENVIRONMENT
+            | DETACHED_PROCESS;
+        // SAFETY: every pointer references live, NUL-terminated buffers.
+        let ok = unsafe {
+            match token {
+                Some(t) => CreateProcessAsUserW(
+                    t,
+                    exe.as_ptr(),
+                    cmd.as_mut_ptr(),
+                    null(),
+                    null(),
+                    1,
+                    flags,
+                    env.as_ptr().cast(),
+                    cwd.as_ptr(),
+                    &si.StartupInfo,
+                    &mut pi,
+                ),
+                None => CreateProcessW(
+                    exe.as_ptr(),
+                    cmd.as_mut_ptr(),
+                    null(),
+                    null(),
+                    1,
+                    flags,
+                    env.as_ptr().cast(),
+                    cwd.as_ptr(),
+                    &si.StartupInfo,
+                    &mut pi,
+                ),
+            }
+        };
+        if ok == 0 {
+            return Err(last_err("CreateProcess"));
+        }
+        Ok(pi)
+    })();
     // SAFETY: list was initialised above.
     unsafe { DeleteProcThreadAttributeList(attrs) };
-    if let Some(e) = err {
-        return Err(e);
-    }
+    let pi = result?;
     let process = own(pi.hProcess);
     let thread = own(pi.hThread);
 
@@ -501,19 +703,19 @@ pub fn spawn_restricted(req: &SpawnRequest<'_>) -> io::Result<RestrictedChild> {
         process,
         pid: pi.dwProcessId,
         _job: job,
+        mechanism,
     })
 }
 
 // ------------------------------------------------------- child directory
 
 /// Create a directory the confined child can write: the owner and SYSTEM keep
-/// full control, `Everyone` (which the restricted token's restricting SIDs
-/// include) gets full access, and the integrity label is Untrusted so
-/// no-write-up does not block the child.
+/// full control and the AppContainer gets full access (inherited). The Low
+/// integrity label stops no-write-up from blocking the Low-integrity child.
 pub fn create_child_dir(path: &Path) -> io::Result<()> {
+    let ac = Sid::app_container()?.to_string()?;
     let sddl = wide(OsStr::new(&format!(
-        "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;OW)(A;OICI;FA;;;WD)S:(ML;OICI;NW;;;S-1-16-{})",
-        integrity_rid_for_children()
+        "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;OW)(A;OICI;FA;;;{ac})S:(ML;OICI;NW;;;LW)"
     )));
     let mut sd: *mut c_void = null_mut();
     // SAFETY: valid SDDL string and out pointer.
@@ -565,23 +767,34 @@ pub(crate) fn apply(p: &Profile) -> Result<Report> {
     }
     report.mechanisms.push("job-object".into());
 
+    match is_app_container() {
+        Ok(true) => report.mechanisms.push("appcontainer".into()),
+        Ok(false) => report
+            .degraded
+            .push("not an AppContainer process: the network is not blocked".into()),
+        Err(e) => return Err(Error::Io(e)),
+    }
     match integrity_rid() {
         Ok(rid) if rid <= 0x1000 => report.mechanisms.push(format!("integrity-{rid:#x}")),
-        Ok(rid) => return degrade(p, report, &format!("integrity level {rid:#x} is above Low")),
+        Ok(rid) => {
+            return degrade(p, report, &format!("integrity level {rid:#x} is above Low"));
+        }
         Err(e) => return Err(Error::Io(e)),
     }
 
     // Mitigations that may only be requested by the process itself.
-    set_policy(
+    match set_policy(
         ProcessChildProcessPolicy,
         &ChildProcessPolicy { flags: 1 }, // bit 0: NoChildProcessCreation
-    )
-    .map(|_| report.mechanisms.push("no-child-process".into()))
-    .unwrap_or_else(|e| report.degraded.push(format!("child-process policy: {e}")));
+    ) {
+        Ok(()) => report.mechanisms.push("no-child-process".into()),
+        Err(e) => report.degraded.push(format!("child-process policy: {e}")),
+    }
     if report.degraded.is_empty() {
         Ok(report)
     } else {
-        degrade(p, report.clone(), &report.degraded.join("; "))
+        let why = report.degraded.join("; ");
+        degrade(p, report, &why)
     }
 }
 
@@ -589,7 +802,9 @@ fn degrade(p: &Profile, mut report: Report, why: &str) -> Result<Report> {
     if p.require_enforced {
         Err(Error::NotEnforced(why.into()))
     } else {
-        report.degraded.push(why.into());
+        if !report.degraded.iter().any(|d| d == why) {
+            report.degraded.push(why.into());
+        }
         Ok(report)
     }
 }
@@ -606,11 +821,19 @@ fn set_policy<T>(policy: PROCESS_MITIGATION_POLICY, v: &T) -> io::Result<()> {
     Ok(())
 }
 
+/// `GetCurrentProcessToken()`: a pseudo handle that needs no access check. A
+/// confined token cannot `OpenProcessToken` its own process.
+fn current_token() -> HANDLE {
+    -4isize as HANDLE
+}
+
+fn is_app_container() -> io::Result<bool> {
+    let buf = token_info(current_token(), TokenIsAppContainer)?;
+    Ok(buf.len() >= 4 && u32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]) != 0)
+}
+
 fn integrity_rid() -> io::Result<u32> {
-    // `GetCurrentProcessToken()`: a pseudo handle that needs no access check. A restricted
-    // token cannot `OpenProcessToken` its own process (the token's DACL names only the user).
-    let tok = -4isize as HANDLE;
-    let buf = token_info(tok, TokenIntegrityLevel)?;
+    let buf = token_info(current_token(), TokenIntegrityLevel)?;
     // SAFETY: buffer holds a TOKEN_MANDATORY_LABEL.
     let label = unsafe { &*(buf.as_ptr() as *const TOKEN_MANDATORY_LABEL) };
     // SAFETY: valid SID; the last sub-authority is the RID.

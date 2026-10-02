@@ -18,6 +18,7 @@ use std::time::Duration;
 const ENV_HOME_FILE: &str = "PROBE_HOME_FILE";
 const ENV_OUTSIDE_FILE: &str = "PROBE_OUTSIDE_FILE";
 const ENV_TCP_ADDR: &str = "PROBE_TCP_ADDR";
+const ENV_HOST_CWD: &str = "PROBE_HOST_CWD";
 const ENV_PDFIUM: &str = "PAPYRINE_PDFIUM_DIR";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,10 +63,13 @@ fn run_probes() -> Vec<Probe> {
         "write_home_new_file",
         std::fs::write(home_file.with_extension("new"), b"x"),
     ));
+    // The host's working directory (the child's own cwd is its temp dir on Windows).
+    let host_cwd_file =
+        PathBuf::from(std::env::var(ENV_HOST_CWD).unwrap()).join("papyrine-sandbox-cwd-probe");
     v.push(probe(
-        "write_cwd_relative",
-        std::fs::write("papyrine-sandbox-cwd-probe", b"x").inspect(|_| {
-            let _ = std::fs::remove_file("papyrine-sandbox-cwd-probe");
+        "write_host_cwd",
+        std::fs::write(&host_cwd_file, b"x").inspect(|_| {
+            let _ = std::fs::remove_file(&host_cwd_file);
         }),
     ));
     // --- sockets
@@ -415,6 +419,7 @@ fn run_probe_child(sandbox: bool, bait: &Bait) -> ProbeReport {
     let mut s = spec(Role::Other("probe".into()), sandbox)
         .env(ENV_HOME_FILE, bait.home_file.as_os_str())
         .env(ENV_OUTSIDE_FILE, bait.outside_file.as_os_str())
+        .env(ENV_HOST_CWD, std::env::current_dir().unwrap())
         .env(
             ENV_TCP_ADDR,
             bait.listener.local_addr().unwrap().to_string(),
@@ -486,7 +491,7 @@ fn sandbox_denies_home_outside_writes_sockets_and_processes() {
         "list_home_dir",
         "write_outside_file",
         "write_home_new_file",
-        "write_cwd_relative",
+        "write_host_cwd",
         "tcp_connect",
         "udp_bind",
         "tcp_listen",

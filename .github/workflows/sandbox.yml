@@ -77,17 +77,7 @@ jobs:
       - name: clippy
         run: cargo clippy -p papyrine-ipc -p papyrine-sandbox --all-targets -- -D warnings
       - name: Sandbox and IPC tests
-        id: tests
-        continue-on-error: ${{ runner.os == 'Windows' }}
         run: cargo test -p papyrine-ipc -p papyrine-sandbox -- --nocapture --test-threads=1
-      - name: Windows sandbox profile variants (diagnostic)
-        if: runner.os == 'Windows' && steps.tests.outcome == 'failure'
-        run: |
-          for v in "" lowil nouilimit "lowil,nouilimit,norestrict"; do
-            echo "::group::variant [$v]"
-            PAPYRINE_WIN_VARIANT="$v" cargo test -p papyrine-sandbox --test sandbox -- --nocapture --test-threads=1 sandbox_denies sandboxed_engine 2>&1 | grep -E "exit code|mechanisms|denied |NOT denied|should work|test .*(ok|FAILED)|panicked|bootstrap" || true
-            echo "::endgroup::"
-          done
       - name: TypeScript bindings are current
         if: runner.os == 'Linux'
         env:
