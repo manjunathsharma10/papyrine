@@ -33,7 +33,16 @@ pub enum Error {
     Native(String),
 }
 
+/// Message carried by the [`Error::Native`] a cancelled operation returns.
+pub(crate) const CANCELLED: &str = "operation cancelled";
+
 impl Error {
+    /// True when a progress callback cancelled the operation (reported as [`Error::Native`] so the
+    /// enum stays source compatible; a dedicated variant is a follow-up).
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, Error::Native(m) if m == CANCELLED)
+    }
+
     pub(crate) fn from_exception(e: cxx::Exception) -> Error {
         Self::from_message(e.what())
     }
@@ -56,6 +65,7 @@ impl Error {
             7 => Error::Object(msg),
             110 => Error::Type(msg),
             111 => Error::Range(msg),
+            112 => Error::Native(CANCELLED.into()),
             102 => Error::Native("out of memory".into()),
             _ => Error::Native(msg),
         }

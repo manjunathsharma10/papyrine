@@ -17,17 +17,28 @@
 //! ```
 
 mod document;
+mod embedded;
 mod encryption;
 mod error;
+mod forms;
 mod object;
+mod outline;
+mod page_labels;
+mod pages;
 mod repair;
 mod secret;
+mod trees;
 mod write;
 
 pub use document::{Document, Fingerprint, ObjId, OpenOptions};
+pub use embedded::EmbeddedFile;
 pub use encryption::{CryptMethod, EncryptionInfo};
 pub use error::{Error, Result};
+pub use forms::{FieldKind, FormField, Widget};
 pub use object::{DecodeLevel, Object, ObjectKind, StreamBytes};
+pub use outline::OutlineItem;
+pub use page_labels::{LabelStyle, PageLabelRange, PageLabels};
+pub use pages::{FlattenOptions, annotation_flags};
 pub use repair::{RepairEntry, RepairLog};
 pub use secret::Secret;
 pub use write::{

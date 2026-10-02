@@ -242,19 +242,54 @@ impl WriteOutput {
 
 impl Document {
     pub fn write(&self, opts: &WriteOptions) -> Result<WriteOutput> {
-        self.write_inner(opts, &[])
+        self.write_inner(opts, &[], ffi::ProgressBox::none())
     }
 
     pub fn write_to_path(&self, path: &Path, opts: &WriteOptions) -> Result<WriteOutput> {
-        let p = path_bytes(path);
-        if p.is_empty() {
-            return Err(Error::Range("empty output path".into()));
-        }
-        self.write_inner(opts, &p)
+        let p = non_empty_path(path)?;
+        self.write_inner(opts, &p, ffi::ProgressBox::none())
     }
 
-    fn write_inner(&self, opts: &WriteOptions, path: &[u8]) -> Result<WriteOutput> {
-        let raw = ffi::doc_write(self.ffi(), &opts.to_ffi(), path)?;
+    /// Like [`Document::write`], reporting approximate progress (0..=100) to `progress`, which
+    /// returns `false` to cancel; a cancelled write returns an error with [`Error::is_cancelled`] and the document
+    /// stays usable. The callback runs on the calling thread during the write.
+    pub fn write_with_progress(
+        &self,
+        opts: &WriteOptions,
+        progress: &mut dyn FnMut(u8) -> bool,
+    ) -> Result<WriteOutput> {
+        let mut f = |p: i32| progress(p.clamp(0, 100) as u8);
+        // SAFETY: the ProgressBox is consumed by this call and `f` outlives it.
+        let pb = unsafe { ffi::ProgressBox::new(&mut f) };
+        self.write_inner(opts, &[], pb)
+    }
+
+    /// File variant of [`Document::write_with_progress`]. A cancelled or failed write removes
+    /// the partially written file.
+    pub fn write_to_path_with_progress(
+        &self,
+        path: &Path,
+        opts: &WriteOptions,
+        progress: &mut dyn FnMut(u8) -> bool,
+    ) -> Result<WriteOutput> {
+        let p = non_empty_path(path)?;
+        let mut f = |p: i32| progress(p.clamp(0, 100) as u8);
+        // SAFETY: as in `write_with_progress`.
+        let pb = unsafe { ffi::ProgressBox::new(&mut f) };
+        let r = self.write_inner(opts, &p, pb);
+        if r.as_ref().is_err_and(Error::is_cancelled) {
+            let _ = std::fs::remove_file(path);
+        }
+        r
+    }
+
+    fn write_inner(
+        &self,
+        opts: &WriteOptions,
+        path: &[u8],
+        mut progress: ffi::ProgressBox,
+    ) -> Result<WriteOutput> {
+        let raw = ffi::doc_write(self.ffi(), &opts.to_ffi(), path, &mut progress)?;
         let map = ffi::write_out_renumber(&raw)?
             .into_iter()
             .map(|r| {
@@ -266,4 +301,12 @@ impl Document {
             .collect();
         Ok(WriteOutput { raw, renumber: map })
     }
+}
+
+fn non_empty_path(path: &Path) -> Result<Vec<u8>> {
+    let p = path_bytes(path);
+    if p.is_empty() {
+        return Err(Error::Range("empty output path".into()));
+    }
+    Ok(p)
 }

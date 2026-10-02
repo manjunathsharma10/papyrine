@@ -335,6 +335,10 @@ impl Document {
         Ok(self.wrap(ffi::doc_copy_foreign(self.ffi(), foreign.raw())?))
     }
 
+    pub(crate) fn keep_alive(&self, other: &Document) {
+        self.inner.keepalive.borrow_mut().push(other.inner.clone());
+    }
+
     fn note_foreign(&self, obj: &Object) {
         if !Rc::ptr_eq(&self.inner, &obj.doc) {
             self.inner.keepalive.borrow_mut().push(obj.doc.clone());

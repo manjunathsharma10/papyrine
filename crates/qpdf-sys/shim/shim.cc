@@ -397,8 +397,25 @@ void doc_push_inherited(Doc const& d)
     d.q->pushInheritedAttributesToPage();
 }
 
+namespace {
+// Forwards QPDFWriter progress to Rust; a `false` answer aborts the write by throwing.
+class RustProgress final : public QPDFWriter::ProgressReporter {
+  public:
+    explicit RustProgress(ProgressBox& p) : p_(p) {}
+    void reportProgress(int percent) override
+    {
+        if (!progress_report(p_, percent)) {
+            throw ShimError(kCancelled, "write cancelled");
+        }
+    }
+
+  private:
+    ProgressBox& p_;
+};
+} // namespace
+
 std::unique_ptr<WriteOut> doc_write(Doc const& d, WriteOptions const& opts,
-                                    rust::Slice<uint8_t const> path)
+                                    rust::Slice<uint8_t const> path, ProgressBox& progress)
 {
     auto out = std::make_unique<WriteOut>();
     std::vector<QPDFObjGen> ogs;
@@ -407,6 +424,7 @@ std::unique_ptr<WriteOut> doc_write(Doc const& d, WriteOptions const& opts,
     }
 
     QPDFWriter w(*d.q);
+    w.registerProgressReporter(std::make_shared<RustProgress>(progress));
     std::string path_s = to_string(path);
     bool to_memory = path_s.empty();
     if (to_memory) {

@@ -29,6 +29,7 @@ struct ShimError : std::runtime_error {
 };
 inline constexpr int kTypeError = 110;
 inline constexpr int kRangeError = 111;
+inline constexpr int kCancelled = 112;
 } // namespace papyrine
 
 namespace rust::behavior {
@@ -71,6 +72,13 @@ struct EncryptionParams;
 struct WriteOptions;
 struct Renumber;
 struct Fingerprint;
+struct WidgetInfo;
+struct FieldInfo;
+struct OutlineItem;
+struct LabelRange;
+struct EmbeddedFileInfo;
+struct ProviderBox;
+struct ProgressBox;
 
 // A document: the QPDF instance plus everything that must outlive it.
 struct Doc {
@@ -122,7 +130,7 @@ void doc_remove_page(Doc const& d, Obj const& page);
 int32_t doc_find_page(Doc const& d, Obj const& page);
 void doc_push_inherited(Doc const& d);
 std::unique_ptr<WriteOut> doc_write(Doc const& d, WriteOptions const& opts,
-                                    rust::Slice<uint8_t const> path);
+                                    rust::Slice<uint8_t const> path, ProgressBox& progress);
 rust::Slice<uint8_t const> write_out_data(WriteOut const& w);
 rust::Vec<Renumber> write_out_renumber(WriteOut const& w);
 
@@ -172,6 +180,39 @@ std::unique_ptr<Buf> stream_data(Obj const& o, int32_t decode_level);
 void stream_replace_data(Obj const& o, rust::Slice<uint8_t const> data, Obj const& filter,
                          Obj const& decode_parms);
 
+void stream_replace_provider(Obj const& o, rust::Box<ProviderBox> provider, Obj const& filter,
+                             Obj const& decode_parms);
+
 rust::Slice<uint8_t const> buf_data(Buf const& b);
+
+bool form_has_acroform(Doc const& d);
+rust::Vec<FieldInfo> form_fields(Doc const& d);
+void form_set_value(Doc const& d, int32_t id, int32_t gen, rust::Slice<uint8_t const> value,
+                    bool appearance);
+bool form_need_appearances(Doc const& d);
+void form_set_need_appearances(Doc const& d, bool v);
+void form_generate_appearances(Doc const& d);
+
+void flatten_annotations(Doc const& d, int32_t required_flags, int32_t forbidden_flags);
+void remove_unreferenced_resources(Doc const& d);
+void page_remove_unreferenced_resources(Doc const& d, Obj const& page);
+rust::Vec<ObjGenPair> copy_pages(Doc const& d, Doc const& src, rust::Slice<uint32_t const> indices,
+                                 size_t at);
+
+rust::Vec<OutlineItem> outlines_read(Doc const& d);
+rust::Vec<LabelRange> page_labels_read(Doc const& d);
+void page_labels_write(Doc const& d, rust::Slice<LabelRange const> ranges);
+rust::Vec<EmbeddedFileInfo> embedded_files_list(Doc const& d);
+
+std::unique_ptr<Obj> name_tree_new(Doc const& d);
+rust::Vec<Bytes> name_tree_keys(Doc const& d, Obj const& root);
+std::unique_ptr<Obj> name_tree_get(Doc const& d, Obj const& root, rust::Slice<uint8_t const> key);
+void name_tree_set(Doc const& d, Obj const& root, rust::Slice<uint8_t const> key, Obj const& value);
+bool name_tree_remove(Doc const& d, Obj const& root, rust::Slice<uint8_t const> key);
+std::unique_ptr<Obj> number_tree_new(Doc const& d);
+rust::Vec<int64_t> number_tree_keys(Doc const& d, Obj const& root);
+std::unique_ptr<Obj> number_tree_get(Doc const& d, Obj const& root, int64_t key);
+void number_tree_set(Doc const& d, Obj const& root, int64_t key, Obj const& value);
+bool number_tree_remove(Doc const& d, Obj const& root, int64_t key);
 
 } // namespace papyrine

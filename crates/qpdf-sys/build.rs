@@ -232,6 +232,7 @@ fn main() {
 
     let mut b = cxx_build::bridge("src/lib.rs");
     b.file("shim/shim.cc")
+        .file("shim/helpers.cc")
         .include("shim")
         .include(qpdf.dir.join("include"))
         .include(qpdf_lib_dir.clone())

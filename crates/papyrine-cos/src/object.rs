@@ -265,6 +265,32 @@ impl Object {
         )?)
     }
 
+    /// Replace the stream's data with bytes produced on demand by `provider`.
+    ///
+    /// qpdf calls the provider each time the data is needed (once to measure it and once more per
+    /// write; twice when linearizing) and requires the same bytes every time, so the closure
+    /// should be a pure function of its captures or cache its result. It runs on the document's
+    /// thread, may not touch the document, and must not capture [`Object`]s or [`Document`]s of
+    /// this document (that would form a reference cycle and leak). `filter` and `decode_parms`
+    /// describe how the produced bytes are already encoded. An `Err` fails the operation (usually
+    /// a write) that needed the data.
+    ///
+    /// [`Document`]: crate::Document
+    pub fn stream_replace_lazy(
+        &self,
+        provider: impl Fn() -> std::result::Result<Vec<u8>, String> + 'static,
+        filter: Option<&Object>,
+        decode_parms: Option<&Object>,
+    ) -> Result<()> {
+        let null = ffi::obj_new_null();
+        Ok(ffi::stream_replace_provider(
+            &self.raw,
+            ffi::ProviderBox::new(provider),
+            filter.map_or(&*null, |o| &o.raw),
+            decode_parms.map_or(&*null, |o| &o.raw),
+        )?)
+    }
+
     /// PDF syntax. With `resolved`, indirect references are expanded (may be large).
     pub fn unparse_with(&self, resolved: bool) -> Result<Vec<u8>> {
         Ok(ffi::obj_unparse(&self.raw, resolved)?)
