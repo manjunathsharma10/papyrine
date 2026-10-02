@@ -81,7 +81,7 @@ jobs:
         with:
           key: ${{ matrix.name }}
       - name: Native sources and test corpus cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             third_party/cache
@@ -135,7 +135,7 @@ jobs:
         if: hashFiles('apps/desktop/package.json') != ''
         run: pnpm install --frozen-lockfile
       - name: Native sources cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: third_party/cache
           key: native-gates-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
@@ -237,7 +237,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Native sources cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: third_party/cache
           key: native-${{ matrix.name }}-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
