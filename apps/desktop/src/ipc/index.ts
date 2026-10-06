@@ -1,5 +1,7 @@
 import type { HostApi } from "./contract";
 import { MockHost } from "./mock";
+import { TauriHost, isTauri } from "./tauriHost";
+import { BridgeHost } from "./bridgeHost";
 
 let host: HostApi | null = null;
 
@@ -10,10 +12,11 @@ let host: HostApi | null = null;
  */
 export function getHost(): HostApi {
   if (!host) {
-    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-      console.warn("Papyrine: no Tauri host implementation registered yet; using the mock host.");
-    }
-    host = new MockHost();
+    const bridge = import.meta.env.DEV && typeof location !== "undefined" ? new URLSearchParams(location.search).get("bridge") : null;
+    if (isTauri()) host = new TauriHost();
+    // Dev only: `?bridge=ws://127.0.0.1:PORT/TOKEN` drives the real engine through papyrine-bridge.
+    else if (bridge) host = new BridgeHost(bridge);
+    else host = new MockHost();
   }
   return host;
 }
