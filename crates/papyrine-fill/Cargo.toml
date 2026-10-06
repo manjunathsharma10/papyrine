@@ -1,0 +1,29 @@
+[package]
+name = "papyrine-fill"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Form filling: undoable field commands, appearance generation, AF event model, field navigation, flat-form marks"
+
+[dependencies]
+papyrine-core = { path = "../papyrine-core" }
+papyrine-cos = { path = "../papyrine-cos" }
+papyrine-content = { path = "../papyrine-content" }
+papyrine-forms = { path = "../papyrine-forms" }
+papyrine-ops = { path = "../papyrine-ops" }
+rustybuzz = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+papyrine-model = { path = "../papyrine-model" }
+papyrine-render = { path = "../papyrine-render" }
+papyrine-writer = { path = "../papyrine-writer" }
+tempfile = "3"
+toml = "0.8"
+
+[lints]
+workspace = true
