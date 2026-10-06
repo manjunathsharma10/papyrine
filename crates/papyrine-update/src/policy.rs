@@ -43,6 +43,7 @@ impl Policy {
 
     /// Load from the file and the platform store of the running OS.
     pub fn load() -> Policy {
+        #[cfg_attr(not(any(target_os = "macos", windows)), allow(unused_mut))]
         let mut p = match std::fs::read_to_string(POLICY_FILE) {
             Ok(t) => Policy::from_json(&t),
             Err(_) => Policy::default(),
