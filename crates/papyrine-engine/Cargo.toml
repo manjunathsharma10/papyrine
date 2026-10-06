@@ -7,6 +7,10 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Papyrine engine role: document actors, command execution, snapshots and saves"
 
+[features]
+# Test-only commands (crash, abort, sleep) for the process-level tests. Never enabled in releases.
+test-commands = []
+
 [dependencies]
 papyrine-core = { path = "../papyrine-core" }
 papyrine-cos = { path = "../papyrine-cos" }
