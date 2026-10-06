@@ -11,7 +11,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
+  # One running and at most one waiting run per branch: a backlog of per-commit runs would
+  # starve the macOS runners. Running jobs are never cancelled on main.
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
