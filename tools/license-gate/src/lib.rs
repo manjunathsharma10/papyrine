@@ -22,6 +22,7 @@ pub const ALLOWED: &[&str] = &[
     "libpng-2.0",
     "BSL-1.0",
     "0BSD",
+    "CDLA-Permissive-2.0",
     "CC0-1.0",
 ];
 
