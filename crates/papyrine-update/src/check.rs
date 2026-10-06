@@ -63,7 +63,13 @@ pub struct Checker<T: Transport> {
 }
 
 impl<T: Transport> Checker<T> {
-    pub fn new(transport: T, roots: Vec<Root>, policy: Policy, installed: &str, cache_dir: PathBuf) -> Self {
+    pub fn new(
+        transport: T,
+        roots: Vec<Root>,
+        policy: Policy,
+        installed: &str,
+        cache_dir: PathBuf,
+    ) -> Self {
         Self {
             transport,
             roots,
@@ -156,7 +162,10 @@ impl<T: Transport> Checker<T> {
                 .and_then(|_| std::fs::write(self.cache_dir.join("keyring.json"), raw));
         }
 
-        let env = match self.fetch(&base, "updates.json").and_then(|b| Envelope::parse(&b)) {
+        let env = match self
+            .fetch(&base, "updates.json")
+            .and_then(|b| Envelope::parse(&b))
+        {
             Ok(e) => e,
             Err(reason) => return CheckOutcome::Ignored { reason, warnings },
         };
@@ -166,7 +175,9 @@ impl<T: Transport> Checker<T> {
         };
         if updates.serial < settings.updates_serial {
             return CheckOutcome::Ignored {
-                reason: Error::Stale("updates.json serial is older than one already accepted".into()),
+                reason: Error::Stale(
+                    "updates.json serial is older than one already accepted".into(),
+                ),
                 warnings,
             };
         }

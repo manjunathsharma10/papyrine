@@ -45,13 +45,24 @@ pub fn good_keyring(serial: u64) -> Keyring {
         schema: 1,
         serial,
         issued: NOW - 10,
-        keys: vec![online("rel-1", &release_key(), KeyPurpose::Release, NOW - 1000, NOW + 1_000_000)],
+        keys: vec![online(
+            "rel-1",
+            &release_key(),
+            KeyPurpose::Release,
+            NOW - 1000,
+            NOW + 1_000_000,
+        )],
         revoked: vec![],
     }
 }
 
 pub fn sign_keyring(k: &Keyring) -> Vec<u8> {
-    let env = signing::sign(DOMAIN_KEYRING, serde_json::to_string(k).unwrap(), roots::DEV_ROOT_ID, &root_key());
+    let env = signing::sign(
+        DOMAIN_KEYRING,
+        serde_json::to_string(k).unwrap(),
+        roots::DEV_ROOT_ID,
+        &root_key(),
+    );
     serde_json::to_vec(&env).unwrap()
 }
 
@@ -77,7 +88,13 @@ pub fn updates(serial: u64, version: &str, sev: Severity, affected: &[&str]) -> 
             downloads: vec![dl(&"0".repeat(64), 10)],
         },
     );
-    Updates { schema: 1, serial, issued: NOW - 5, expires: NOW + 86_400, channels }
+    Updates {
+        schema: 1,
+        serial,
+        issued: NOW - 5,
+        expires: NOW + 86_400,
+        channels,
+    }
 }
 
 pub fn sign_updates_with(u: &Updates, id: &str, key: &SigningKey) -> Vec<u8> {
@@ -93,7 +110,10 @@ pub fn envelope(bytes: &[u8]) -> Envelope {
 }
 
 pub fn revoked(mut k: Keyring, id: &str) -> Keyring {
-    k.revoked.push(Revocation { id: id.into(), reason: "test".into() });
+    k.revoked.push(Revocation {
+        id: id.into(),
+        reason: "test".into(),
+    });
     k
 }
 
@@ -121,8 +141,14 @@ impl Transport for Recording {
         let files = self.files.lock().unwrap();
         let hit = files.iter().find(|(n, _)| req.url.ends_with(n.as_str()));
         match hit {
-            Some((_, b)) => Ok(Response { status: 200, body: Box::new(Cursor::new(b.clone())) }),
-            None => Ok(Response { status: 404, body: Box::new(Cursor::new(Vec::new())) }),
+            Some((_, b)) => Ok(Response {
+                status: 200,
+                body: Box::new(Cursor::new(b.clone())),
+            }),
+            None => Ok(Response {
+                status: 404,
+                body: Box::new(Cursor::new(Vec::new())),
+            }),
         }
     }
 }
