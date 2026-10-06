@@ -12,7 +12,11 @@ use papyrine_ipc::{Role, ServeExit, bootstrap};
 use papyrine_render::{Library, mem, role};
 
 fn main() {
-    if let Err(e) = mem::reexec_with_child_env() {
+    // PAPYRINE_RENDER_NO_ALLOC_ENV=1 skips the re-exec, to measure the renderer as it
+    // behaves when the host forgot to pass the allocator environment.
+    if std::env::var_os("PAPYRINE_RENDER_NO_ALLOC_ENV").is_none()
+        && let Err(e) = mem::reexec_with_child_env()
+    {
         eprintln!("render_role: could not re-exec with the allocator environment: {e}");
     }
     let lib = Library::global();

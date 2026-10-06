@@ -51,6 +51,16 @@ pub fn reexec_with_child_env() -> std::io::Result<()> {
     Err(cmd.exec())
 }
 
+/// [`reexec_with_child_env`] only when this process was started as the renderer
+/// child (`PAPYRINE_ROLE=renderer`), so a multi-role executable can call it
+/// unconditionally as the first line of `main`, before `bootstrap()`.
+pub fn reexec_if_renderer() -> std::io::Result<()> {
+    match std::env::var("PAPYRINE_ROLE").as_deref() {
+        Ok("renderer") => reexec_with_child_env(),
+        _ => Ok(()),
+    }
+}
+
 #[cfg(not(unix))]
 pub fn reexec_with_child_env() -> std::io::Result<()> {
     Ok(())

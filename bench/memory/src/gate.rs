@@ -123,6 +123,9 @@ pub fn run(file: &str, args: &[String]) {
         for (k, v) in rmem::CHILD_ENV {
             spec = spec.env(*k, *v);
         }
+    } else {
+        // Also stop the role binary from re-executing itself with the variable.
+        spec = spec.env("PAPYRINE_RENDER_NO_ALLOC_ENV", "1");
     }
     let t_start = Instant::now();
     let cc: CC = ChildClient::spawn(&spec, Duration::from_secs(60)).expect("spawn renderer");

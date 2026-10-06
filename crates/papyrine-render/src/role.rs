@@ -41,6 +41,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+/// Largest preview edge the renderer accepts (a 4096 x 4096 bitmap is 64 MB).
+pub const MAX_PREVIEW_EDGE: u32 = 4096;
+
 #[derive(Clone, Debug)]
 pub struct RendererConfig {
     pub memory: MemoryConfig,
@@ -544,6 +547,11 @@ impl Server {
                 max_edge,
                 dest,
             } => {
+                if *max_edge == 0 || *max_edge > MAX_PREVIEW_EDGE {
+                    return Err(IpcError::invalid(format!(
+                        "preview edge must be 1..={MAX_PREVIEW_EDGE}"
+                    )));
+                }
                 let p = *page as usize;
                 self.prepare(*doc, Some(p))?;
                 let mut scratch = std::mem::take(&mut self.scratch);

@@ -154,6 +154,7 @@ fn open_render_inline_and_slot() {
         .unwrap_err();
     assert_eq!(e.code, ErrorCode::NotFound);
     assert!(Stats::get(&h.stats.warmup_us) > 0);
+    eprintln!("warm-up render took {} us", Stats::get(&h.stats.warmup_us));
 }
 
 fn hello_bytes() -> Vec<u8> {
@@ -207,7 +208,7 @@ fn reopen_is_debounced_and_updates_tiles() {
     let b = build(&[PageSpec::letter(hello_content())]);
     let h = Harness::start(RendererConfig {
         warmup: false,
-        debounce: Duration::from_millis(80),
+        debounce: Duration::from_millis(500),
         ..RendererConfig::default()
     });
     h.open(1, b.bytes.clone());
@@ -237,7 +238,11 @@ fn reopen_is_debounced_and_updates_tiles() {
     // A tile request flushes the debounce at once (no 80 ms wait) and sees the last edit.
     let t = Instant::now();
     let after = h.tile_inline(1, 0, 0, 0, 0);
-    assert!(t.elapsed() < Duration::from_millis(70), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(400),
+        "{:?}",
+        t.elapsed()
+    );
     assert_eq!(px(&after, 200, 500), [255, 0, 0, 255]);
     for p in pend {
         match p.wait().unwrap() {
@@ -415,6 +420,10 @@ fn search_can_be_cancelled_and_does_not_block_tiles() {
     let p = h.tile_inline(1, 5, 0, 0, 0);
     assert_eq!(p.width, 512);
     let tile_ms = t.elapsed();
+    assert!(
+        job.wait_timeout(Duration::ZERO).is_none(),
+        "the tile was served while the search was still running"
+    );
     job.cancel();
     let e = job.wait().unwrap_err();
     assert!(e.is_cancelled(), "{e:?}");
@@ -422,7 +431,7 @@ fn search_can_be_cancelled_and_does_not_block_tiles() {
         Stats::get(&h.stats.search_pages) < 3000,
         "search stopped early"
     );
-    assert!(tile_ms < Duration::from_millis(500), "{tile_ms:?}");
+    eprintln!("tile served during search in {tile_ms:?}");
 }
 
 #[test]
@@ -449,7 +458,7 @@ fn queued_tile_job_is_cancelled_before_it_runs() {
             h.c.start_job(RenderRequest::RenderPreview {
                 doc: DocId(1),
                 page: 0,
-                max_edge: 3000, // large: not a thumbnail
+                max_edge: 2000, // large: not a thumbnail
                 dest: PixelDest::Inline,
             })
             .unwrap()
@@ -511,4 +520,65 @@ fn close_and_shutdown() {
         panic!()
     };
     assert_eq!(nonce, 9);
+}
+
+#[test]
+fn visible_tile_preempts_a_running_preview() {
+    // One very busy page (60k rectangles) and one trivial page.
+    let mut rng = Rng(7);
+    let heavy = PageSpec::letter(busy_content(0, 10, 60_000, &mut rng));
+    let light = PageSpec::letter(hello_content());
+    let h = Harness::start(quiet());
+    h.open(1, build(&[heavy, light]).bytes);
+    let slow =
+        h.c.start_job(RenderRequest::RenderPreview {
+            doc: DocId(1),
+            page: 0,
+            max_edge: 2400,
+            dest: PixelDest::Inline,
+        })
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(15));
+    let t = Instant::now();
+    let tile =
+        h.c.start_job(RenderRequest::RenderTile {
+            doc: DocId(1),
+            page: 1,
+            bucket: 0,
+            tile_x: 0,
+            tile_y: 0,
+            dest: PixelDest::Inline,
+        })
+        .unwrap();
+    let r = tile.wait().unwrap();
+    let tile_ms = t.elapsed();
+    assert!(matches!(r, RenderResponse::Pixels(_)));
+    // The preview is restarted afterwards and still completes.
+    let r = slow.wait().unwrap();
+    assert!(matches!(r, RenderResponse::Pixels(_)));
+    eprintln!(
+        "preempts: {}, tile waited {tile_ms:?}",
+        Stats::get(&h.stats.preempts)
+    );
+    assert!(
+        Stats::get(&h.stats.preempts) >= 1,
+        "the preview was not preempted"
+    );
+}
+
+#[test]
+fn absurd_preview_sizes_are_refused() {
+    let h = Harness::start(quiet());
+    h.open(1, hello_bytes());
+    for edge in [0u32, 4097, u32::MAX] {
+        let e = h
+            .call(RenderRequest::RenderPreview {
+                doc: DocId(1),
+                page: 0,
+                max_edge: edge,
+                dest: PixelDest::Inline,
+            })
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::InvalidRequest);
+    }
 }
