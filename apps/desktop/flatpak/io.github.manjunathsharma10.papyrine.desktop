@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Papyrine
+Comment=Lightweight PDF editor
+Exec=papyrine %f
+Icon=io.github.manjunathsharma10.papyrine
+Terminal=false
+Categories=Office;Viewer;
+MimeType=application/pdf;

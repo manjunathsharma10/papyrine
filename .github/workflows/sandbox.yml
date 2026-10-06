@@ -75,11 +75,11 @@ jobs:
           python third_party/fetch
           python tools/fetch-pdfium --platform ${{ matrix.pdfium }}
       - name: clippy
-        run: cargo clippy -p papyrine-ipc -p papyrine-sandbox --all-targets -- -D warnings
+        run: cargo clippy --locked -p papyrine-ipc -p papyrine-sandbox --all-targets -- -D warnings
       - name: Sandbox and IPC tests
-        run: cargo test -p papyrine-ipc -p papyrine-sandbox -- --nocapture --test-threads=1
+        run: cargo test --locked -p papyrine-ipc -p papyrine-sandbox -- --nocapture --test-threads=1
       - name: TypeScript bindings are current
         if: runner.os == 'Linux'
         env:
           PAPYRINE_CHECK_TS: "1"
-        run: cargo test -p papyrine-ipc --test ts_bindings
+        run: cargo test --locked -p papyrine-ipc --test ts_bindings

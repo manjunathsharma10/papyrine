@@ -36,12 +36,18 @@ impl FaultInjector for AbortAt {
     }
 }
 
+// qpdf derives the trailer /ID from the clock, so two builds of the "same" file can differ
+// when they straddle a second boundary; build each fixture once per process.
 fn pdf_a() -> Vec<u8> {
-    make_pdf(2, ObjectStreams::Disable, None)
+    static A: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+    A.get_or_init(|| make_pdf(2, ObjectStreams::Disable, None))
+        .clone()
 }
 
 fn pdf_b() -> Vec<u8> {
-    make_pdf(5, ObjectStreams::Generate, None)
+    static B: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+    B.get_or_init(|| make_pdf(5, ObjectStreams::Generate, None))
+        .clone()
 }
 
 fn replace_with(

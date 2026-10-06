@@ -86,6 +86,7 @@ fn sync_dir(p: &Path) {
 }
 
 fn private_options() -> std::fs::OpenOptions {
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut o = std::fs::OpenOptions::new();
     #[cfg(unix)]
     {
@@ -102,6 +103,7 @@ fn ms(t: std::time::SystemTime) -> u64 {
 
 impl Fs for RealFs {
     fn create_dir_all(&self, p: &Path) -> io::Result<()> {
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut b = std::fs::DirBuilder::new();
         b.recursive(true);
         #[cfg(unix)]

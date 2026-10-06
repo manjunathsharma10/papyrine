@@ -28,7 +28,15 @@ fn oracle() -> Option<&'static Oracle> {
     O.get_or_init(|| {
         let venv = target_dir().join("pyhanko-venv");
         let python = venv.join("bin/python");
-        if !python.exists() {
+        // CI restores target/ from a cache that can drop the installed packages but keep the
+        // interpreter link, so "exists" is not enough: the venv must be able to import pyHanko.
+        let usable = python.exists()
+            && Command::new(&python)
+                .args(["-c", "import pyhanko, pyhanko_certvalidator"])
+                .output()
+                .is_ok_and(|o| o.status.success());
+        if !usable {
+            let _ = std::fs::remove_dir_all(&venv);
             let ok = Command::new("python3")
                 .args(["-m", "venv"])
                 .arg(&venv)

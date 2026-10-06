@@ -1,0 +1,33 @@
+# Flatpak manifest (ADR-027). CI builds the release binary first (`tauri build --no-bundle`) and
+# this manifest packages it; a from-source Flathub manifest with offline cargo/pnpm sources is a
+# follow-up. WebKitGTK 4.1 comes from the GNOME runtime, so the app bundle stays small.
+app-id: io.github.manjunathsharma10.papyrine
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+command: papyrine
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # No network, no home access: files arrive through the document portal (open/save dialogs).
+  - --talk-name=org.freedesktop.portal.Desktop
+modules:
+  - name: papyrine
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 papyrine /app/bin/papyrine
+      - install -Dm644 io.github.manjunathsharma10.papyrine.desktop /app/share/applications/io.github.manjunathsharma10.papyrine.desktop
+      - install -Dm644 io.github.manjunathsharma10.papyrine.metainfo.xml /app/share/metainfo/io.github.manjunathsharma10.papyrine.metainfo.xml
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.manjunathsharma10.papyrine.png
+    sources:
+      - type: file
+        path: ../../../target/release/papyrine
+      - type: file
+        path: io.github.manjunathsharma10.papyrine.desktop
+      - type: file
+        path: io.github.manjunathsharma10.papyrine.metainfo.xml
+      - type: file
+        path: ../src-tauri/icons/128x128.png
+        dest-filename: icon-128.png

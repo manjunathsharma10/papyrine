@@ -23,6 +23,7 @@ allow = [
     "IJG",
     "libpng-2.0",
     "BSL-1.0",
+    "0BSD",
     "CC0-1.0",
     "Apache-2.0 WITH LLVM-exception",
 ]

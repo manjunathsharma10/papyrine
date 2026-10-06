@@ -86,6 +86,15 @@ fn run_probes() -> Vec<Probe> {
         "tcp_listen",
         TcpListener::bind("127.0.0.1:0").map(|_| ()),
     ));
+    // Windows cannot deny bind/listen to an AppContainer (the network stack only filters
+    // traffic), so what matters is that nothing can reach the socket: not even the child
+    // itself over loopback.
+    v.push(probe(
+        "loopback_self_connect",
+        TcpListener::bind("127.0.0.1:0").and_then(|l| {
+            TcpStream::connect_timeout(&l.local_addr()?, Duration::from_secs(2)).map(|_| ())
+        }),
+    ));
     // --- spawning a process
     v.push(probe("spawn_process", spawn_something()));
     #[cfg(unix)]
@@ -467,6 +476,7 @@ fn probes_succeed_without_a_sandbox() {
         "write_home_new_file",
         "tcp_connect",
         "udp_bind",
+        "loopback_self_connect",
         "spawn_process",
         "write_temp_file",
         "threads",
@@ -493,7 +503,12 @@ fn sandbox_denies_home_outside_writes_sockets_and_processes() {
         "write_home_new_file",
         "write_host_cwd",
         "tcp_connect",
+        "loopback_self_connect",
+        // Creating or binding a socket is only denied outright on Unix; on Windows the
+        // AppContainer makes it unreachable (see loopback_self_connect).
+        #[cfg(unix)]
         "udp_bind",
+        #[cfg(unix)]
         "tcp_listen",
         "spawn_process",
         #[cfg(unix)]
