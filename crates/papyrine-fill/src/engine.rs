@@ -159,8 +159,24 @@ impl ScriptTable {
     }
 }
 
+thread_local! {
+    static FIXED_TODAY: std::cell::Cell<Option<DateEnv>> = const { std::cell::Cell::new(None) };
+}
+
+/// Run `f` with the clock the `AFDate_*` functions see fixed to `env` (reference tests pin it to
+/// 2014-05-09 as PDFium's do). Affects the current thread only.
+pub fn with_fixed_today<R>(env: DateEnv, f: impl FnOnce() -> R) -> R {
+    let prev = FIXED_TODAY.with(|c| c.replace(Some(env)));
+    let r = f();
+    FIXED_TODAY.with(|c| c.set(prev));
+    r
+}
+
 /// Today's date (UTC) for `AFDate_*` functions that default missing parts.
 pub fn today() -> DateEnv {
+    if let Some(e) = FIXED_TODAY.with(std::cell::Cell::get) {
+        return e;
+    }
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());

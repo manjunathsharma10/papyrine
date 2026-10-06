@@ -24,14 +24,16 @@ use papyrine_forms::datefmt::DateTime;
 use papyrine_forms::event::{Alert, Event, TextColor, merge_change};
 use papyrine_forms::{DateEnv, MapForm, run_script};
 
-struct Case {
-    id: String,
-    source: String,
-    note: &'static str,
-    kind: Kind,
+/// `pub` so `papyrine-fill`'s end-to-end test can include this file and replay every case
+/// through the event model.
+pub struct Case {
+    pub id: String,
+    pub source: String,
+    pub note: &'static str,
+    pub kind: Kind,
 }
 
-enum Kind {
+pub enum Kind {
     /// Run a format/calculate script; compare `event.value`.
     Format {
         script: String,
@@ -76,7 +78,7 @@ enum Kind {
     },
 }
 
-fn env() -> DateEnv {
+pub fn env() -> DateEnv {
     // PDFium's date tests run with the clock fixed at 2014-05-09.
     DateEnv {
         today: DateTime::ymd(2014, 5, 9),
@@ -2009,7 +2011,7 @@ fn merge_and_misc(out: &mut Vec<Case>) {
     out.push(n("makenumber-neg", "adobe:AFMakeNumber", "-4.5", -4.5));
 }
 
-fn all_cases() -> Vec<Case> {
+pub fn all_cases() -> Vec<Case> {
     let mut v = Vec::new();
     pdfium_format_cases(&mut v);
     number_cases(&mut v);
