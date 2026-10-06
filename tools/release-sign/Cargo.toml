@@ -1,0 +1,17 @@
+[package]
+name = "release-sign"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Offline/CI signing CLI for keyring.json and updates.json (docs/KEYS.md)"
+
+[dependencies]
+papyrine-update = { path = "../../crates/papyrine-update", features = ["signing"] }
+getrandom = "0.3"
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[lints]
+workspace = true

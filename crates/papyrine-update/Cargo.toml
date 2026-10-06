@@ -1,0 +1,32 @@
+[package]
+name = "papyrine-update"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Opt-in, signed security update check (ARCHITECTURE 9.2, 9.3)"
+
+[features]
+default = []
+# Accept the INSECURE dev root key. Release builds (no debug_assertions) refuse to compile with it.
+dev-root = []
+# Signing primitives, used by tools/release-sign and tests. Never enabled in the app.
+signing = []
+
+[dependencies]
+base64 = "0.22"
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+# webpki-roots is CDLA-Permissive-2.0 (a data licence for the Mozilla CA list); see report.
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+papyrine-update = { path = ".", features = ["signing", "dev-root"] }
+tempfile = "3"
+
+[lints]
+workspace = true
