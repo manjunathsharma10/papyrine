@@ -151,8 +151,8 @@ impl<'a, 'd> Pipeline<'a, 'd> {
         if want != was_set
             && let Some(acro) = self.form.acro.clone()
         {
-            self.cx
-                .set_key(&acro, "NeedAppearances", &self.cx.doc().new_bool(want))?;
+            install::touch_acro(self.cx, &acro)?;
+            acro.dict_set("NeedAppearances", &self.cx.doc().new_bool(want))?;
         }
         summary.need_appearances = want;
         Ok(summary)
@@ -219,7 +219,9 @@ impl<'a, 'd> Pipeline<'a, 'd> {
     pub fn display_text(&self, f: &Field, lookup: &DocForm) -> (String, Option<TextColor>) {
         let raw = match (&f.kind, &f.value) {
             (Kind::List, _) => String::new(),
-            (Kind::Combo, v) if !f.editable_combo() => {
+            // A combo box shows the option's text when its value is an export value; an editable
+            // one may also hold free text, which is shown as typed.
+            (Kind::Combo, v) => {
                 let exp = v.as_text().unwrap_or("");
                 f.options
                     .iter()

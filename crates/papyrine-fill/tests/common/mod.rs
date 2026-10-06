@@ -513,3 +513,87 @@ pub fn poppler_ppm(bytes: &[u8], dpi: u32) -> (u32, u32, Vec<u8>) {
     let mut wh = dims.split_whitespace().map(|v| v.parse::<u32>().unwrap());
     (wh.next().unwrap(), wh.next().unwrap(), data)
 }
+
+// ----- corpus helpers ---------------------------------------------------------------------
+
+/// Workspace root, found from this crate's manifest through the symlink-safe `canonicalize`.
+pub fn workspace_root() -> std::path::PathBuf {
+    let mut p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .unwrap();
+    while !p.join("corpus/manifest.toml").exists() {
+        assert!(p.pop(), "workspace root not found");
+    }
+    p
+}
+
+#[derive(Debug, Clone)]
+pub struct CorpusEntry {
+    pub id: String,
+    pub source: String,
+    pub tags: Vec<String>,
+    pub path: std::path::PathBuf,
+}
+
+/// Every manifest entry whose file is present in the cache.
+pub fn corpus_entries() -> Vec<CorpusEntry> {
+    let root = workspace_root();
+    let mut out = Vec::new();
+    for m in ["corpus/manifest.toml", "corpus/js-forms.toml"] {
+        let text = std::fs::read_to_string(root.join(m)).unwrap();
+        let v: toml::Value = toml::from_str(&text).unwrap();
+        for f in v["file"].as_array().unwrap() {
+            let id = f["id"].as_str().unwrap().to_string();
+            let path = root
+                .join("corpus/cache")
+                .join(if id.starts_with("js-forms/") {
+                    id.clone()
+                } else {
+                    format!("files/{id}")
+                });
+            // js-forms files live both under cache/js-forms and cache/files/js-forms.
+            let path = if path.exists() {
+                path
+            } else {
+                root.join("corpus/cache/files").join(&id)
+            };
+            if !path.exists() {
+                continue;
+            }
+            out.push(CorpusEntry {
+                id,
+                source: f["source"].as_str().unwrap_or("").to_string(),
+                tags: f["tags"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|t| t.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                path,
+            });
+        }
+    }
+    out
+}
+
+/// Widget annotation id -> page index, from the pages' `/Annots`.
+pub fn widget_pages(doc: &Document) -> std::collections::HashMap<ObjId, usize> {
+    let mut m = std::collections::HashMap::new();
+    for i in 0..doc.page_count().unwrap_or(0) {
+        let Ok(page) = doc.page(i) else { continue };
+        let Ok(a) = page.dict_get("Annots") else {
+            continue;
+        };
+        if a.kind().ok() != Some(papyrine_cos::ObjectKind::Array) {
+            continue;
+        }
+        for item in a.array_items().unwrap_or_default() {
+            if let Some(id) = item.id() {
+                m.entry(id).or_insert(i);
+            }
+        }
+    }
+    m
+}

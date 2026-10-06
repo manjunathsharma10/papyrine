@@ -22,6 +22,28 @@ fn real_array(cx: &EditContext<'_>, v: &[f64]) -> Result<Object> {
     Ok(a)
 }
 
+/// Record the object that physically stores the AcroForm dictionary: itself when indirect,
+/// else the catalog it is embedded in.
+pub(crate) fn touch_acro(cx: &mut EditContext<'_>, acro: &Object) -> Result<()> {
+    if acro.is_indirect() {
+        cx.touch(acro)?;
+    } else {
+        let root = cx.doc().root()?;
+        cx.touch(&root)?;
+    }
+    Ok(())
+}
+
+/// Record the holder of something stored inside `/DR`.
+fn touch_dr(cx: &mut EditContext<'_>, acro: &Object, dr: &Object) -> Result<()> {
+    if dr.is_indirect() {
+        cx.touch(dr)?;
+        Ok(())
+    } else {
+        touch_acro(cx, acro)
+    }
+}
+
 /// Find or create the indirect font object for a synthetic Helvetica named `name` and make sure
 /// the AcroForm `/DR /Font` lists it (as Acrobat does when it fills a field whose font is missing).
 pub(crate) fn synthetic_font(
@@ -36,7 +58,7 @@ pub(crate) fn synthetic_font(
     let dr = match cosx::get(acro, "DR").filter(cosx::is_dict) {
         Some(d) => d,
         None => {
-            cx.touch(acro)?;
+            touch_acro(cx, acro)?;
             let d = doc.new_dict();
             acro.dict_set("DR", &d)?;
             d
@@ -45,7 +67,7 @@ pub(crate) fn synthetic_font(
     let fonts = match cosx::get(&dr, "Font").filter(cosx::is_dict) {
         Some(f) => f,
         None => {
-            touch_holder(cx, &dr, acro)?;
+            touch_dr(cx, acro, &dr)?;
             let f = doc.new_dict();
             dr.dict_set("Font", &f)?;
             f
@@ -57,8 +79,11 @@ pub(crate) fn synthetic_font(
         return Ok(existing);
     }
     let obj = font::ensure_helvetica_object(doc)?;
-    let holder_owner = if dr.is_indirect() { &dr } else { acro };
-    touch_holder(cx, &fonts, holder_owner)?;
+    if fonts.is_indirect() {
+        cx.touch(&fonts)?;
+    } else {
+        touch_dr(cx, acro, &dr)?;
+    }
     fonts.dict_set(name, &obj)?;
     Ok(obj)
 }

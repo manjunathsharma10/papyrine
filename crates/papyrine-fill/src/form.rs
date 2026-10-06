@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use papyrine_cos::{DecodeLevel, Document, ObjId, Object, ObjectKind};
+use papyrine_cos::{Document, ObjId, Object, ObjectKind};
 
 use crate::cosx::{self, MAX_DEPTH};
 use crate::error::{FillError, Result};
@@ -200,7 +200,6 @@ impl FormTree {
         t.q = cosx::get_int(&acro, "Q").unwrap_or(0).clamp(0, 2);
         t.dr = cosx::get(&acro, "DR");
         let needs_rendering = cosx::get_bool(&root, "NeedsRendering").unwrap_or(false);
-        t.xfa = xfa_state(&acro, needs_rendering);
         let mut w = Walker {
             seen: HashSet::new(),
             out: Vec::new(),
@@ -216,6 +215,7 @@ impl FormTree {
         }
         t.fields = w.out;
         t.truncated = w.truncated;
+        t.xfa = xfa_state(&acro, needs_rendering, !t.fields.is_empty());
         t.calc_order = cosx::get(&acro, "CO")
             .map(|c| cosx::items(&c))
             .unwrap_or_default()
@@ -535,40 +535,21 @@ fn make_widget(w: &Object) -> Option<Widget> {
     })
 }
 
-fn xfa_state(acro: &Object, needs_rendering: bool) -> XfaState {
-    let Some(xfa) = cosx::get(acro, "XFA") else {
-        return XfaState::None;
-    };
-    let template = match cosx::kind(&xfa) {
-        Some(ObjectKind::Array) => cosx::items(&xfa)
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .find(|p| cosx::text(&p[0]).as_deref() == Some("template"))
-            .map(|p| p[1].clone()),
-        Some(ObjectKind::Stream) => Some(xfa.clone()),
-        _ => None,
-    };
-    let Some(t) = template else {
-        return if needs_rendering {
-            XfaState::Dynamic
-        } else {
-            XfaState::Static
-        };
-    };
-    let Ok(data) = t.stream_decoded(DecodeLevel::Generalized) else {
-        return XfaState::Dynamic;
-    };
-    let bytes = data.as_slice();
-    let find = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).position(|w| w == needle);
-    let Some(pos) = find(bytes, b"<template") else {
-        return XfaState::Dynamic;
-    };
-    let head = &bytes[pos..bytes.len().min(pos + 1024)];
-    let head = &head[..find(head, b">").unwrap_or(head.len())];
-    if find(head, b"interactiveForms").is_some() {
-        XfaState::Static
-    } else {
+/// Static or dynamic XFA (ROADMAP 1.13).
+///
+/// Dynamic XFA documents are rendered by an XFA engine: the catalog says `/NeedsRendering true`
+/// and the AcroForm is a placeholder (usually without any fields). Everything else with an
+/// `/XFA` entry is a hybrid whose AcroForm is the live form: Designer's "static" forms
+/// (`baseProfile="interactiveForms"`) and the IRS family (`defaultPDFRenderFormat
+/// acrobat12.0static`, no base profile, all fields present). The template text is therefore not
+/// consulted; `papyrine-model` guesses from the base profile and calls every IRS form dynamic
+/// (147 of 147 in the corpus), which would make them read-only.
+fn xfa_state(acro: &Object, needs_rendering: bool, has_fields: bool) -> XfaState {
+    if cosx::get(acro, "XFA").is_none() {
+        XfaState::None
+    } else if needs_rendering || !has_fields {
         XfaState::Dynamic
+    } else {
+        XfaState::Static
     }
 }

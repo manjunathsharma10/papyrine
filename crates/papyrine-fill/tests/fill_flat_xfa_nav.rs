@@ -192,8 +192,16 @@ fn xfa_form(base_profile: &str, needs_rendering: bool) -> Vec<u8> {
 
 #[test]
 fn static_xfa_is_fillable_and_the_stale_packet_is_dropped() {
+    // Both the Designer "static" profile and the IRS family (no base profile, formServer
+    // `acrobat12.0static`) are hybrids whose AcroForm is live.
+    for profile in ["full", "interactiveForms"] {
+        assert_eq!(
+            FormTree::load(&open(xfa_form(profile, false))).unwrap().xfa,
+            XfaState::Static,
+            "{profile}"
+        );
+    }
     let doc = open(xfa_form("interactiveForms", false));
-    assert_eq!(FormTree::load(&doc).unwrap().xfa, XfaState::Static);
     let st = form_status(&doc).unwrap();
     assert!(!st.dynamic_xfa && st.xfa == XfaState::Static);
     let mut h = history();
@@ -215,7 +223,7 @@ fn static_xfa_is_fillable_and_the_stale_packet_is_dropped() {
 
 #[test]
 fn dynamic_xfa_is_read_only_with_a_notice() {
-    for (profile, nr) in [("full", false), ("full", true)] {
+    for (profile, nr) in [("full", true), ("interactiveForms", true)] {
         let doc = open(xfa_form(profile, nr));
         let st = form_status(&doc).unwrap();
         assert!(st.dynamic_xfa, "{profile} {nr}");

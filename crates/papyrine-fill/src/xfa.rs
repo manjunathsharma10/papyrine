@@ -33,7 +33,8 @@ fn remove_xfa(cx: &mut EditContext<'_>, form: &FormTree) -> Result<()> {
     let Some(acro) = &form.acro else {
         return Ok(());
     };
-    cx.remove_key(acro, "XFA")?;
+    crate::install::touch_acro(cx, acro)?;
+    acro.dict_remove("XFA")?;
     let root = cx.doc().root()?;
     if root.dict_has("NeedsRendering")? {
         cx.remove_key(&root, "NeedsRendering")?;
