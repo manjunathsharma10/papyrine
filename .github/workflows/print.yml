@@ -1,0 +1,101 @@
+name: Print
+
+# ROADMAP 1.17 / ADR-028: a print job on macOS and Linux produces the expected pages through a
+# virtual printer. macOS runs NSPrintOperation with the "save" job disposition (no panel);
+# Linux goes through GTK and CUPS to the CUPS-PDF virtual printer under Xvfb. CUPS-PDF needs
+# Ghostscript, which is only a CI-side tool here and is never shipped. Windows printing
+# ("Microsoft Print to PDF") arrives with v0.1.x.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/papyrine-print/**"
+      - "crates/papyrine-render/**"
+      - ".github/workflows/print.yml"
+  pull_request:
+    paths:
+      - "crates/papyrine-print/**"
+      - ".github/workflows/print.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: print-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  print:
+    name: print (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, os: macos-15, pdfium: mac-arm64 }
+          - { name: linux-x64, os: ubuntu-24.04, pdfium: linux-x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Linux packages (GTK, CUPS, CUPS-PDF, Xvfb, qpdf CLI)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libgtk-3-dev cups printer-driver-cups-pdf \
+            xvfb qpdf
+      - name: macOS packages (qpdf CLI for --check)
+        if: runner.os == 'macOS'
+        run: brew install qpdf
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: print-${{ matrix.name }}
+      - name: Native sources cache
+        uses: actions/cache@v4
+        with:
+          path: third_party/cache
+          key: native-${{ matrix.name }}-${{ hashFiles('third_party/native.toml', 'third_party/fetch', 'tools/fetch-pdfium') }}
+          restore-keys: native-${{ matrix.name }}-
+      - name: Fetch pinned native sources and PDFium
+        run: |
+          python third_party/fetch
+          python tools/fetch-pdfium --platform ${{ matrix.pdfium }}
+      - name: clippy
+        run: cargo clippy --locked -p papyrine-print --all-targets -- -D warnings
+      - name: Print pipeline and platform tests (no dialog is ever shown)
+        run: cargo test --locked -p papyrine-print -- --nocapture --test-threads=1
+      - name: Start CUPS with a CUPS-PDF virtual printer
+        if: runner.os == 'Linux'
+        run: |
+          sudo systemctl start cups || sudo service cups start
+          for i in $(seq 1 20); do lpstat -r 2>/dev/null | grep -q "is running" && break; sleep 1; done
+          if ! lpstat -p PDF >/dev/null 2>&1; then
+            ppd=$(lpinfo -m | grep -i 'cups-pdf' | head -n1 | awk '{print $1}')
+            sudo lpadmin -p PDF -E -v cups-pdf:/ -m "$ppd"
+          fi
+          sudo cupsenable PDF || true
+          sudo cupsaccept PDF || true
+          lpstat -t
+          sudo mkdir -p "/var/spool/cups-pdf/$USER"
+          sudo chmod -R a+rwX /var/spool/cups-pdf
+      - name: GTK to CUPS-PDF end-to-end print job
+        if: runner.os == 'Linux'
+        env:
+          PAPYRINE_CUPS_PRINTER: PDF
+        run: |
+          export PAPYRINE_CUPS_OUT="/var/spool/cups-pdf/$USER"
+          xvfb-run -a cargo test --locked -p papyrine-print --test linux_cups -- --nocapture
+          ls -la "$PAPYRINE_CUPS_OUT" || true

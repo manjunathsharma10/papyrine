@@ -1,0 +1,42 @@
+[package]
+name = "papyrine-print"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Native printing: print-PDF pipeline, scaling math, macOS PDFKit and Linux GTK/CUPS back ends"
+
+[features]
+# Compile the GTK/CUPS back end on every unix host (type-check and lint it on a Mac).
+# Never needed on Linux, where it is always on.
+force-gtk = []
+
+[dependencies]
+papyrine-core = { path = "../papyrine-core" }
+papyrine-cos = { path = "../papyrine-cos" }
+papyrine-render = { path = "../papyrine-render" }
+serde = { version = "1", features = ["derive"] }
+miniz_oxide = "0.8"
+thiserror = "2"
+
+[target.'cfg(unix)'.dependencies]
+# The GTK back end dlopens the system libgtk-3 (the same one Tauri uses); nothing is linked.
+libloading = "0.8"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString", "NSURL", "NSData", "NSDictionary", "NSGeometry", "NSThread", "NSObject", "NSValue", "NSArray"] }
+objc2-app-kit = { version = "0.3", features = ["NSPrintInfo", "NSPrintOperation", "NSPrinter", "NSPrintPanel", "NSResponder", "NSApplication", "NSWindow"] }
+objc2-pdf-kit = { version = "0.3", features = ["PDFDocument", "PDFPage", "objc2-app-kit"] }
+
+[dev-dependencies]
+papyrine-render = { path = "../papyrine-render" }
+
+[[test]]
+name = "macos_save"
+path = "tests/macos_save.rs"
+harness = false
+
+[lints]
+workspace = true
