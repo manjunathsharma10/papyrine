@@ -1892,15 +1892,17 @@ Copyright notice:
   jloup@gzip.org          madler@alumni.caltech.edu
 ```
 
-## Rust crates (245)
+## Rust crates (294)
 
 | Name | Version | License |
 |---|---|---|
 | adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| aes | 0.8.4 | MIT OR Apache-2.0 |
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
 | alloc-no-stdlib | 3.0.0 | BSD-3-Clause |
 | alloc-stdlib | 0.3.0 | BSD-3-Clause |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 |
+| arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | atk | 0.18.2 | MIT |
 | atk-sys | 0.18.2 | MIT |
 | base64 | 0.21.7 | MIT OR Apache-2.0 |
@@ -1909,32 +1911,47 @@ Copyright notice:
 | bit-vec | 0.8.0 | Apache-2.0 OR MIT |
 | bitflags | 1.3.2 | MIT/Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
+| blake3 | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception |
+| block-buffer | 0.10.4 | MIT OR Apache-2.0 |
+| block-padding | 0.3.3 | MIT OR Apache-2.0 |
 | block2 | 0.6.2 | MIT |
 | brotli | 9.0.0 | BSD-3-Clause AND MIT |
 | brotli-decompressor | 6.0.1 | BSD-3-Clause/MIT |
 | bs58 | 0.5.1 | MIT/Apache-2.0 |
+| bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
+| byteorder | 1.5.0 | Unlicense OR MIT |
 | bytes | 1.12.1 | MIT |
 | cairo-rs | 0.18.5 | MIT |
 | cairo-sys-rs | 0.18.2 | MIT |
 | camino | 1.2.6 | MIT OR Apache-2.0 |
 | cargo-platform | 0.1.9 | MIT OR Apache-2.0 |
 | cargo_metadata | 0.19.2 | MIT |
+| cbc | 0.1.2 | MIT OR Apache-2.0 |
 | cfb | 0.14.0 | MIT |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 |
+| cipher | 0.4.4 | MIT OR Apache-2.0 |
+| cobs | 0.3.0 | MIT OR Apache-2.0 |
+| constant_time_eq | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 |
 | core-foundation-sys | 0.8.7 | MIT OR Apache-2.0 |
 | core-graphics | 0.25.0 | MIT OR Apache-2.0 |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
+| cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
+| crc32c | 0.6.8 | Apache-2.0/MIT |
 | crc32fast | 1.5.2 | MIT OR Apache-2.0 |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
+| crypto-common | 0.1.7 | MIT OR Apache-2.0 |
 | cssparser | 0.37.0 | MPL-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
+| cxx | 1.0.202 | MIT OR Apache-2.0 |
 | defmt | 1.1.1 | MIT OR Apache-2.0 |
 | deranged | 0.5.8 | MIT OR Apache-2.0 |
 | derive_more | 2.1.1 | MIT |
+| digest | 0.10.7 | MIT OR Apache-2.0 |
 | dirs | 7.0.0 | MIT OR Apache-2.0 |
 | dirs-sys | 0.5.0 | MIT OR Apache-2.0 |
 | dispatch2 | 0.3.1 | Zlib OR Apache-2.0 OR MIT |
@@ -1945,7 +1962,11 @@ Copyright notice:
 | dtoa-short | 0.3.5 | MPL-2.0 |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | dyn-clone | 1.0.20 | MIT OR Apache-2.0 |
+| either | 1.18.0 | MIT OR Apache-2.0 |
 | embed_plist | 1.2.2 | MIT OR Apache-2.0 |
+| embedded-io | 0.4.0 | MIT OR Apache-2.0 |
+| embedded-io | 0.6.1 | MIT OR Apache-2.0 |
+| enumflags2 | 0.7.12 | MIT OR Apache-2.0 |
 | equivalent | 1.0.2 | Apache-2.0 OR MIT |
 | erased-serde | 0.4.10 | MIT OR Apache-2.0 |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 |
@@ -1968,6 +1989,7 @@ Copyright notice:
 | gdk-pixbuf-sys | 0.18.0 | MIT |
 | gdk-sys | 0.18.2 | MIT |
 | gdkwayland-sys | 0.18.2 | MIT |
+| generic-array | 0.14.7 | MIT |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 |
 | getrandom | 0.4.3 | MIT OR Apache-2.0 |
 | gio | 0.18.4 | MIT |
@@ -1997,6 +2019,8 @@ Copyright notice:
 | indexmap | 1.9.3 | Apache-2.0 OR MIT |
 | indexmap | 2.14.2 | Apache-2.0 OR MIT |
 | infer | 0.22.0 | MIT |
+| inout | 0.1.4 | MIT OR Apache-2.0 |
+| itertools | 0.15.0 | MIT OR Apache-2.0 |
 | itoa | 1.0.18 | MIT OR Apache-2.0 |
 | javascriptcore-rs | 1.1.2 | MIT |
 | javascriptcore-rs-sys | 1.1.1 | MIT |
@@ -2007,15 +2031,20 @@ Copyright notice:
 | json-patch | 4.2.0 | MIT/Apache-2.0 |
 | jsonptr | 0.7.1 | MIT OR Apache-2.0 |
 | keyboard-types | 0.8.3 | MIT OR Apache-2.0 |
+| landlock | 0.4.7 | MIT OR Apache-2.0 |
 | libappindicator | 0.9.0 | Apache-2.0 OR MIT |
 | libappindicator-sys | 0.9.0 | Apache-2.0 OR MIT |
 | libc | 0.2.189 | MIT OR Apache-2.0 |
 | libloading | 0.7.4 | ISC |
+| link-cplusplus | 1.0.12 | MIT OR Apache-2.0 |
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
+| maybe-owned | 0.3.4 | MIT OR Apache-2.0 |
+| md-5 | 0.10.6 | MIT OR Apache-2.0 |
 | memchr | 2.8.3 | Unlicense OR MIT |
+| memmap2 | 0.9.11 | MIT OR Apache-2.0 |
 | memoffset | 0.9.1 | MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
@@ -2027,8 +2056,13 @@ Copyright notice:
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
 | objc2 | 0.6.4 | MIT |
 | objc2-app-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-cloud-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-data | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-foundation | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-core-graphics | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-image | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-text | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
+| objc2-core-video | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-encode | 4.1.0 | MIT |
 | objc2-exception-helper | 0.1.1 | Zlib OR Apache-2.0 OR MIT |
 | objc2-foundation | 0.3.2 | MIT |
@@ -2041,12 +2075,15 @@ Copyright notice:
 | pango-sys | 0.18.0 | MIT |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 |
+| pdfium-render | 0.9.4 | MIT OR Apache-2.0 |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 |
 | phf | 0.13.1 | MIT |
 | phf_shared | 0.13.1 | MIT |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT |
+| piston-float | 1.0.1 | MIT |
 | plist | 1.10.1 | MIT |
 | png | 0.18.1 | MIT OR Apache-2.0 |
+| postcard | 1.1.3 | MIT OR Apache-2.0 |
 | potential_utf | 0.1.6 | Unicode-3.0 |
 | powerfmt | 0.2.0 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
@@ -2064,6 +2101,7 @@ Copyright notice:
 | schemars | 0.9.0 | MIT |
 | schemars | 1.2.2 | MIT |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| seccompiler | 0.5.0 | Apache-2.0 OR BSD-3-Clause |
 | selectors | 0.38.0 | MPL-2.0 |
 | semver | 1.0.28 | MIT OR Apache-2.0 |
 | serde | 1.0.229 | MIT OR Apache-2.0 |
@@ -2105,13 +2143,19 @@ Copyright notice:
 | tracing | 0.1.44 | MIT |
 | tracing-core | 0.1.36 | MIT |
 | tray-icon | 0.25.1 | MIT OR Apache-2.0 |
+| ts-rs | 12.0.1 | MIT |
 | typeid | 1.0.3 | MIT OR Apache-2.0 |
+| typenum | 1.20.1 | MIT OR Apache-2.0 |
+| unicode-bidi | 0.3.18 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| unicode-normalization | 0.1.25 | MIT OR Apache-2.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlpattern | 0.6.0 | MIT |
+| utf16string | 0.2.0 | MIT OR Apache-2.0 |
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT |
 | uuid | 1.26.1 | Apache-2.0 OR MIT |
+| vecmath | 1.0.0 | MIT |
 | walkdir | 2.5.0 | Unlicense/MIT |
 | web-time | 1.1.0 | MIT OR Apache-2.0 |
 | web_atoms | 0.2.6 | MIT OR Apache-2.0 |
@@ -2119,6 +2163,7 @@ Copyright notice:
 | webkit2gtk-sys | 2.0.2 | MIT |
 | webview2-com | 0.39.1 | MIT |
 | webview2-com-sys | 0.39.1 | MIT |
+| winapi | 0.3.9 | MIT/Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
 | window-vibrancy | 0.8.1 | Apache-2.0 OR MIT |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
@@ -2137,10 +2182,14 @@ Copyright notice:
 | wry | 0.57.0 | Apache-2.0 OR MIT |
 | yoke | 0.8.3 | Unicode-3.0 |
 | zerofrom | 0.1.8 | Unicode-3.0 |
+| zeroize | 1.9.0 | Apache-2.0 OR MIT |
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.8 | Unicode-3.0 |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
+| zstd | 0.13.3 | MIT |
+| zstd-safe | 7.3.0 | BSD-3-Clause |
+| zstd-sys | 2.1.0+zstd.1.5.7 | BSD-3-Clause |
 
 ### Rust licence texts
 
@@ -2161,7 +2210,7 @@ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-Used by: adler2 2.0.1, anyhow 1.0.104, atk 0.18.2, atk-sys 0.18.2, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, ctor 1.0.13, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.10, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-sys 0.18.1, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, itoa 1.0.18, once_cell 1.21.4, pango 0.18.3, pango-sys 0.18.0, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_json 1.0.151, servo_arc 0.4.3, siphasher 1.0.4, thiserror 1.0.69, thiserror 2.0.21, tinyvec 1.13.3, typeid 1.0.3, unicode-ident 1.0.26, winnow 1.0.4, zmij 1.0.23
+Used by: adler2 2.0.1, anyhow 1.0.104, atk 0.18.2, atk-sys 0.18.2, cairo-rs 0.18.5, cairo-sys-rs 0.18.2, camino 1.2.6, cargo-platform 0.1.9, cargo_metadata 0.19.2, ctor 1.0.13, cxx 1.0.202, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.10, gdk 0.18.2, gdk-pixbuf 0.18.5, gdk-pixbuf-sys 0.18.0, gdk-sys 0.18.2, gdkwayland-sys 0.18.2, gio 0.18.4, gio-sys 0.18.1, glib 0.18.5, glib-sys 0.18.1, gobject-sys 0.18.0, gtk 0.18.2, gtk-sys 0.18.2, itoa 1.0.18, link-cplusplus 1.0.12, once_cell 1.21.4, pango 0.18.3, pango-sys 0.18.0, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_json 1.0.151, servo_arc 0.4.3, siphasher 1.0.4, thiserror 1.0.69, thiserror 2.0.21, tinyvec 1.13.3, typeid 1.0.3, unicode-ident 1.0.26, winnow 1.0.4, zmij 1.0.23
 
 ```text
 [MIT License: standard text, see "Standard licence texts" below]
@@ -2198,7 +2247,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-Used by: aho-corasick 1.1.5, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
+Used by: aes 0.8.4
+
+```text
+Copyright (c) 2018 Artyom Pavlov
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: aes 0.8.4, block-buffer 0.10.4, block-padding 0.3.3, cbc 0.1.2, cipher 0.4.4, cpufeatures 0.2.17, cpufeatures 0.3.1, crypto-common 0.1.7, digest 0.10.7, inout 0.1.4, md-5 0.10.6
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Used by: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
 
 ```text
 This is free and unencumbered software released into the public domain.
@@ -2227,7 +2315,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 ```
 
-Used by: aho-corasick 1.1.5, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
+Used by: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
 
 ```text
 This project is dual-licensed under the Unlicense and MIT licenses.
@@ -2235,7 +2323,7 @@ This project is dual-licensed under the Unlicense and MIT licenses.
 You may use this code under the terms of either license.
 ```
 
-Used by: aho-corasick 1.1.5, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, walkdir 2.5.0
+Used by: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.37, jiff-core 0.1.1, jiff-tzdb 0.1.8, jiff-tzdb-platform 0.1.3, memchr 2.8.3, walkdir 2.5.0
 
 ```text
 The MIT License (MIT)
@@ -2262,10 +2350,49 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-Used by: anyhow 1.0.104, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.10, fdeflate 0.3.7, field-offset 0.3.6, itoa 1.0.18, libc 0.2.189, miniz_oxide 0.8.9, miniz_oxide 0.9.1, num-conv 0.2.2, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, ref-cast 1.0.27, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_json 1.0.151, tauri 2.12.1, tauri-runtime 2.12.1, tauri-runtime-wry 2.12.1, tauri-utils 2.10.1, thiserror 1.0.69, thiserror 2.0.21, time 0.3.55, time-core 0.1.9, typeid 1.0.3, unicode-ident 1.0.26
+Used by: anyhow 1.0.104, constant_time_eq 0.4.2, cxx 1.0.202, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.10, fdeflate 0.3.7, field-offset 0.3.6, itoa 1.0.18, libc 0.2.189, link-cplusplus 1.0.12, miniz_oxide 0.8.9, miniz_oxide 0.9.1, num-conv 0.2.2, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, ref-cast 1.0.27, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_json 1.0.151, tauri 2.12.1, tauri-runtime 2.12.1, tauri-runtime-wry 2.12.1, tauri-utils 2.10.1, thiserror 1.0.69, thiserror 2.0.21, time 0.3.55, time-core 0.1.9, typeid 1.0.3, unicode-ident 1.0.26
 
 ```text
 [Apache License 2.0: standard text, see "Standard licence texts" below]
+```
+
+Used by: arrayvec 0.7.8
+
+```text
+Copyright (c) Ulrik Sverdrup "bluss" 2015-2023
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: arrayvec 0.7.8, base64 0.21.7, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bs58 0.5.1, camino 1.2.6, cfg-if 1.0.5, core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, either 1.18.0, embedded-io 0.4.0, embedded-io 0.6.1, equivalent 1.0.2, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, glob 0.3.4, hashbrown 0.12.3, hashbrown 0.17.1, heck 0.5.0, html5ever 0.39.0, idna 1.1.0, idna_adapter 1.2.2, indexmap 1.9.3, indexmap 2.14.2, itertools 0.15.0, keyboard-types 0.8.3, libappindicator 0.9.0, lock_api 0.4.14, log 0.4.34, markup5ever 0.39.0, mime 0.3.17, muda 0.20.0, num-traits 0.2.19, once_cell 1.21.4, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, png 0.18.1, postcard 1.1.3, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, scopeguard 1.2.0, serde_with 3.24.0, servo_arc 0.4.3, smallvec 1.16.2, socket2 0.6.5, stable_deref_trait 1.2.1, string_cache 0.9.0, tendril 0.5.1, tray-icon 0.25.1, unicode-bidi 0.3.18, unicode-normalization 0.1.25, unicode-segmentation 1.13.3, url 2.5.8, utf16string 0.2.0, uuid 1.26.1, web_atoms 0.2.6, window-vibrancy 0.8.1, wry 0.57.0
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
 
 Used by: atk 0.18.2, cairo-rs 0.18.5, gdk 0.18.2, gdk-pixbuf 0.18.5, gio 0.18.4, glib 0.18.5, gtk 0.18.2, pango 0.18.3
@@ -2295,37 +2422,6 @@ The MIT License (MIT)
 Copyright (c) 2015 Alice Maz
 
 [MIT License: standard text, see "Standard licence texts" below]
-```
-
-Used by: base64 0.21.7, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bs58 0.5.1, camino 1.2.6, cfg-if 1.0.5, core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, equivalent 1.0.2, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, glob 0.3.4, hashbrown 0.12.3, hashbrown 0.17.1, heck 0.5.0, html5ever 0.39.0, idna 1.1.0, idna_adapter 1.2.2, indexmap 1.9.3, indexmap 2.14.2, keyboard-types 0.8.3, libappindicator 0.9.0, lock_api 0.4.14, log 0.4.34, markup5ever 0.39.0, mime 0.3.17, muda 0.20.0, num-traits 0.2.19, once_cell 1.21.4, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, png 0.18.1, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, scopeguard 1.2.0, serde_with 3.24.0, servo_arc 0.4.3, smallvec 1.16.2, socket2 0.6.5, stable_deref_trait 1.2.1, string_cache 0.9.0, tendril 0.5.1, tray-icon 0.25.1, unicode-segmentation 1.13.3, url 2.5.8, uuid 1.26.1, web_atoms 0.2.6, window-vibrancy 0.8.1, wry 0.57.0
-
-```text
-[Apache License 2.0: standard text, see "Standard licence texts" below]
-
-APPENDIX: How to apply the Apache License to your work.
-
-   To apply the Apache License to your work, attach the following
-   boilerplate notice, with the fields enclosed by brackets "[]"
-   replaced with your own identifying information. (Don't include
-   the brackets!)  The text should be enclosed in the appropriate
-   comment syntax for the file format. We also recommend that a
-   file or class name and description of purpose be included on the
-   same "printed page" as the copyright notice for easier
-   identification within third-party archives.
-
-Copyright [yyyy] [name of copyright owner]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 ```
 
 Used by: base64 0.23.1
@@ -2385,6 +2481,219 @@ Copyright (c) 2014 The Rust Project Developers
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: blake3 1.8.7
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+    APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+    Copyright 2019 Jack O'Connor and Samuel Neves
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+
+---- LLVM Exceptions to the Apache 2.0 License ----
+
+As an exception, if, as a result of your compiling your source code, portions
+of this Software are embedded into an Object form of such source code, you
+may redistribute such embedded portions in such Object form without complying
+with the conditions of Sections 4(a), 4(b) and 4(d) of the License.
+
+In addition, if you combine or link compiled forms of this Software with
+software that is licensed under the GPLv2 ("Combined Software") and if a
+court of competent jurisdiction determines that the patent provision (Section
+3), the indemnity provision (Section 9) or other Section of the License
+conflicts with the conditions of the GPLv2, you may retroactively and
+prospectively choose to deem waived or otherwise exclude such Section(s) of
+the License, but only in their entirety and only with respect to the Combined
+Software.
+```
+
+Used by: blake3 1.8.7
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2019 Jack O'Connor and Samuel Neves
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+Used by: blake3 1.8.7, constant_time_eq 0.4.2, dunce 1.0.5
+
+```text
+Creative Commons Legal Code
+
+CC0 1.0 Universal
+
+    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
+    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
+    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
+    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
+    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
+    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
+    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
+    HEREUNDER.
+
+Statement of Purpose
+
+The laws of most jurisdictions throughout the world automatically confer
+exclusive Copyright and Related Rights (defined below) upon the creator
+and subsequent owner(s) (each and all, an "owner") of an original work of
+authorship and/or a database (each, a "Work").
+
+Certain owners wish to permanently relinquish those rights to a Work for
+the purpose of contributing to a commons of creative, cultural and
+scientific works ("Commons") that the public can reliably and without fear
+of later claims of infringement build upon, modify, incorporate in other
+works, reuse and redistribute as freely as possible in any form whatsoever
+and for any purposes, including without limitation commercial purposes.
+These owners may contribute to the Commons to promote the ideal of a free
+culture and the further production of creative, cultural and scientific
+works, or to gain reputation or greater distribution for their Work in
+part through the use and efforts of others.
+
+For these and/or other purposes and motivations, and without any
+expectation of additional consideration or compensation, the person
+associating CC0 with a Work (the "Affirmer"), to the extent that he or she
+is an owner of Copyright and Related Rights in the Work, voluntarily
+elects to apply CC0 to the Work and publicly distribute the Work under its
+terms, with knowledge of his or her Copyright and Related Rights in the
+Work and the meaning and intended legal effect of CC0 on those rights.
+
+1. Copyright and Related Rights. A Work made available under CC0 may be
+protected by copyright and related or neighboring rights ("Copyright and
+Related Rights"). Copyright and Related Rights include, but are not
+limited to, the following:
+
+  i. the right to reproduce, adapt, distribute, perform, display,
+     communicate, and translate a Work;
+ ii. moral rights retained by the original author(s) and/or performer(s);
+iii. publicity and privacy rights pertaining to a person's image or
+     likeness depicted in a Work;
+ iv. rights protecting against unfair competition in regards to a Work,
+     subject to the limitations in paragraph 4(a), below;
+  v. rights protecting the extraction, dissemination, use and reuse of data
+     in a Work;
+ vi. database rights (such as those arising under Directive 96/9/EC of the
+     European Parliament and of the Council of 11 March 1996 on the legal
+     protection of databases, and under any national implementation
+     thereof, including any amended or successor version of such
+     directive); and
+vii. other similar, equivalent or corresponding rights throughout the
+     world based on applicable law or treaty, and any national
+     implementations thereof.
+
+2. Waiver. To the greatest extent permitted by, but not in contravention
+of, applicable law, Affirmer hereby overtly, fully, permanently,
+irrevocably and unconditionally waives, abandons, and surrenders all of
+Affirmer's Copyright and Related Rights and associated claims and causes
+of action, whether now known or unknown (including existing as well as
+future claims and causes of action), in the Work (i) in all territories
+worldwide, (ii) for the maximum duration provided by applicable law or
+treaty (including future time extensions), (iii) in any current or future
+medium and for any number of copies, and (iv) for any purpose whatsoever,
+including without limitation commercial, advertising or promotional
+purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
+member of the public at large and to the detriment of Affirmer's heirs and
+successors, fully intending that such Waiver shall not be subject to
+revocation, rescission, cancellation, termination, or any other legal or
+equitable action to disrupt the quiet enjoyment of the Work by the public
+as contemplated by Affirmer's express Statement of Purpose.
+
+3. Public License Fallback. Should any part of the Waiver for any reason
+be judged legally invalid or ineffective under applicable law, then the
+Waiver shall be preserved to the maximum extent permitted taking into
+account Affirmer's express Statement of Purpose. In addition, to the
+extent the Waiver is so judged Affirmer hereby grants to each affected
+person a royalty-free, non transferable, non sublicensable, non exclusive,
+irrevocable and unconditional license to exercise Affirmer's Copyright and
+Related Rights in the Work (i) in all territories worldwide, (ii) for the
+maximum duration provided by applicable law or treaty (including future
+time extensions), (iii) in any current or future medium and for any number
+of copies, and (iv) for any purpose whatsoever, including without
+limitation commercial, advertising or promotional purposes (the
+"License"). The License shall be deemed effective as of the date CC0 was
+applied by Affirmer to the Work. Should any part of the License for any
+reason be judged legally invalid or ineffective under applicable law, such
+partial invalidity or ineffectiveness shall not invalidate the remainder
+of the License, and in such case Affirmer hereby affirms that he or she
+will not (i) exercise any of his or her remaining Copyright and Related
+Rights in the Work or (ii) assert any associated claims and causes of
+action with respect to the Work, in either case contrary to Affirmer's
+express Statement of Purpose.
+
+4. Limitations and Disclaimers.
+
+ a. No trademark or patent rights held by Affirmer are waived, abandoned,
+    surrendered, licensed or otherwise affected by this document.
+ b. Affirmer offers the Work as-is and makes no representations or
+    warranties of any kind concerning the Work, express, implied,
+    statutory or otherwise, including without limitation warranties of
+    title, merchantability, fitness for a particular purpose, non
+    infringement, or the absence of latent or other defects, accuracy, or
+    the present or absence of errors, whether or not discoverable, all to
+    the greatest extent permissible under applicable law.
+ c. Affirmer disclaims responsibility for clearing rights of other persons
+    that may apply to the Work or any use thereof, including without
+    limitation any person's Copyright and Related Rights in the Work.
+    Further, Affirmer disclaims responsibility for obtaining any necessary
+    consents, permissions or other rights required for any use of the
+    Work.
+ d. Affirmer understands and acknowledges that Creative Commons is not a
+    party to this document and has no duty or obligation with respect to
+    this CC0 or use of the Work.
+```
+
+Used by: block-buffer 0.10.4, block-padding 0.3.3
+
+```text
+Copyright (c) 2018-2019 The RustCrypto Project Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: brotli 9.0.0
 
 ```text
@@ -2402,10 +2711,73 @@ Copyright (c) 2016 The roaring-rs developers.
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: bytemuck 1.25.2
+
+```text
+MIT License
+
+Copyright (c) 2019 Daniel "Lokathor" Gee.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next paragraph) shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+Used by: bytemuck 1.25.2
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+To apply the Apache License to your work, attach the following boilerplate notice, with the fields enclosed by brackets "[]" replaced with your own identifying information. (Don't include the brackets!) The text should be enclosed in the appropriate comment syntax for the file format. We also recommend that a file or class name and description of purpose be included on the same "printed page" as the copyright notice for easier identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Used by: bytemuck 1.25.2, tinyvec 1.13.3
+
+```text
+Copyright (c) 2019 Daniel "Lokathor" Gee.
+
+This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source distribution.
+```
+
 Used by: bytes 1.12.1
 
 ```text
 Copyright (c) 2018 Carl Lerche
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: cbc 0.1.2
+
+```text
+Copyright (c) 2018-2022 RustCrypto Developers
+Copyright (c) 2018 Artyom Pavlov
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -2481,6 +2853,72 @@ limitations under the License.
 ~~~~
 ```
 
+Used by: cipher 0.4.4
+
+```text
+Copyright (c) 2016-2020 RustCrypto Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: cobs 0.3.0
+
+```text
+Copyright (c) 2015 The cobs.rs Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: cobs 0.3.0, crc32fast 1.5.2, ctor 1.0.13, dpi 0.1.2, foreign-types 0.5.0, foreign-types-shared 0.3.1, hex 0.4.3, json-patch 4.2.0, serde_spanned 1.1.1, tao 0.37.1, toml 1.1.6+spec-1.1.0, toml_datetime 1.1.1+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0, toml_writer 1.1.2+spec-1.1.0, winapi 0.3.9
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright {yyyy} {name of copyright owner}
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+Used by: constant_time_eq 0.4.2
+
+```text
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
 Used by: cookie 0.18.2
 
 ```text
@@ -2540,6 +2978,22 @@ option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
 ```
 
+Used by: cpufeatures 0.2.17
+
+```text
+Copyright (c) 2020-2025 The RustCrypto Project Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: cpufeatures 0.3.1
+
+```text
+Copyright (c) 2020-2026 The RustCrypto Project Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: crc32fast 1.5.2
 
 ```text
@@ -2548,37 +3002,6 @@ MIT License
 Copyright (c) 2018 Sam Rijs, Alex Crichton and contributors
 
 [MIT License: standard text, see "Standard licence texts" below]
-```
-
-Used by: crc32fast 1.5.2, ctor 1.0.13, dpi 0.1.2, foreign-types 0.5.0, foreign-types-shared 0.3.1, hex 0.4.3, json-patch 4.2.0, serde_spanned 1.1.1, tao 0.37.1, toml 1.1.6+spec-1.1.0, toml_datetime 1.1.1+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0, toml_writer 1.1.2+spec-1.1.0
-
-```text
-[Apache License 2.0: standard text, see "Standard licence texts" below]
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "{}"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright {yyyy} {name of copyright owner}
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
 ```
 
 Used by: crossbeam-channel 0.5.17
@@ -2992,6 +3415,14 @@ Copyright (c) 2019 The Crossbeam Project Developers
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: crypto-common 0.1.7
+
+```text
+Copyright (c) 2021 RustCrypto Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: cssparser 0.37.0, dtoa-short 0.3.5
 
 ```text
@@ -3051,6 +3482,14 @@ Used by: derive_more 2.1.1
 The MIT License (MIT)
 
 Copyright (c) 2016 Jelte Fennema
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: digest 0.10.7
+
+```text
+Copyright (c) 2017 Artyom Pavlov
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -3298,130 +3737,12 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 ```
 
-Used by: dunce 1.0.5
+Used by: either 1.18.0, itertools 0.15.0, serde_with 3.24.0
 
 ```text
-Creative Commons Legal Code
+Copyright (c) 2015
 
-CC0 1.0 Universal
-
-    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
-    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
-    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
-    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
-    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
-    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
-    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
-    HEREUNDER.
-
-Statement of Purpose
-
-The laws of most jurisdictions throughout the world automatically confer
-exclusive Copyright and Related Rights (defined below) upon the creator
-and subsequent owner(s) (each and all, an "owner") of an original work of
-authorship and/or a database (each, a "Work").
-
-Certain owners wish to permanently relinquish those rights to a Work for
-the purpose of contributing to a commons of creative, cultural and
-scientific works ("Commons") that the public can reliably and without fear
-of later claims of infringement build upon, modify, incorporate in other
-works, reuse and redistribute as freely as possible in any form whatsoever
-and for any purposes, including without limitation commercial purposes.
-These owners may contribute to the Commons to promote the ideal of a free
-culture and the further production of creative, cultural and scientific
-works, or to gain reputation or greater distribution for their Work in
-part through the use and efforts of others.
-
-For these and/or other purposes and motivations, and without any
-expectation of additional consideration or compensation, the person
-associating CC0 with a Work (the "Affirmer"), to the extent that he or she
-is an owner of Copyright and Related Rights in the Work, voluntarily
-elects to apply CC0 to the Work and publicly distribute the Work under its
-terms, with knowledge of his or her Copyright and Related Rights in the
-Work and the meaning and intended legal effect of CC0 on those rights.
-
-1. Copyright and Related Rights. A Work made available under CC0 may be
-protected by copyright and related or neighboring rights ("Copyright and
-Related Rights"). Copyright and Related Rights include, but are not
-limited to, the following:
-
-  i. the right to reproduce, adapt, distribute, perform, display,
-     communicate, and translate a Work;
- ii. moral rights retained by the original author(s) and/or performer(s);
-iii. publicity and privacy rights pertaining to a person's image or
-     likeness depicted in a Work;
- iv. rights protecting against unfair competition in regards to a Work,
-     subject to the limitations in paragraph 4(a), below;
-  v. rights protecting the extraction, dissemination, use and reuse of data
-     in a Work;
- vi. database rights (such as those arising under Directive 96/9/EC of the
-     European Parliament and of the Council of 11 March 1996 on the legal
-     protection of databases, and under any national implementation
-     thereof, including any amended or successor version of such
-     directive); and
-vii. other similar, equivalent or corresponding rights throughout the
-     world based on applicable law or treaty, and any national
-     implementations thereof.
-
-2. Waiver. To the greatest extent permitted by, but not in contravention
-of, applicable law, Affirmer hereby overtly, fully, permanently,
-irrevocably and unconditionally waives, abandons, and surrenders all of
-Affirmer's Copyright and Related Rights and associated claims and causes
-of action, whether now known or unknown (including existing as well as
-future claims and causes of action), in the Work (i) in all territories
-worldwide, (ii) for the maximum duration provided by applicable law or
-treaty (including future time extensions), (iii) in any current or future
-medium and for any number of copies, and (iv) for any purpose whatsoever,
-including without limitation commercial, advertising or promotional
-purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
-member of the public at large and to the detriment of Affirmer's heirs and
-successors, fully intending that such Waiver shall not be subject to
-revocation, rescission, cancellation, termination, or any other legal or
-equitable action to disrupt the quiet enjoyment of the Work by the public
-as contemplated by Affirmer's express Statement of Purpose.
-
-3. Public License Fallback. Should any part of the Waiver for any reason
-be judged legally invalid or ineffective under applicable law, then the
-Waiver shall be preserved to the maximum extent permitted taking into
-account Affirmer's express Statement of Purpose. In addition, to the
-extent the Waiver is so judged Affirmer hereby grants to each affected
-person a royalty-free, non transferable, non sublicensable, non exclusive,
-irrevocable and unconditional license to exercise Affirmer's Copyright and
-Related Rights in the Work (i) in all territories worldwide, (ii) for the
-maximum duration provided by applicable law or treaty (including future
-time extensions), (iii) in any current or future medium and for any number
-of copies, and (iv) for any purpose whatsoever, including without
-limitation commercial, advertising or promotional purposes (the
-"License"). The License shall be deemed effective as of the date CC0 was
-applied by Affirmer to the Work. Should any part of the License for any
-reason be judged legally invalid or ineffective under applicable law, such
-partial invalidity or ineffectiveness shall not invalidate the remainder
-of the License, and in such case Affirmer hereby affirms that he or she
-will not (i) exercise any of his or her remaining Copyright and Related
-Rights in the Work or (ii) assert any associated claims and causes of
-action with respect to the Work, in either case contrary to Affirmer's
-express Statement of Purpose.
-
-4. Limitations and Disclaimers.
-
- a. No trademark or patent rights held by Affirmer are waived, abandoned,
-    surrendered, licensed or otherwise affected by this document.
- b. Affirmer offers the Work as-is and makes no representations or
-    warranties of any kind concerning the Work, express, implied,
-    statutory or otherwise, including without limitation warranties of
-    title, merchantability, fitness for a particular purpose, non
-    infringement, or the absence of latent or other defects, accuracy, or
-    the present or absence of errors, whether or not discoverable, all to
-    the greatest extent permissible under applicable law.
- c. Affirmer disclaims responsibility for clearing rights of other persons
-    that may apply to the Work or any use thereof, including without
-    limitation any person's Copyright and Related Rights in the Work.
-    Further, Affirmer disclaims responsibility for obtaining any necessary
-    consents, permissions or other rights required for any use of the
-    Work.
- d. Affirmer understands and acknowledges that Creative Commons is not a
-    party to this document and has no duty or obligation with respect to
-    this CC0 or use of the Work.
+[MIT License: standard text, see "Standard licence texts" below]
 ```
 
 Used by: embed_plist 1.2.2
@@ -3434,7 +3755,7 @@ Copyright (c) 2020 Nikolai Vazquez
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
-Used by: embed_plist 1.2.2, serialize-to-javascript 0.1.2, siphasher 1.0.4, tinyvec 1.13.3, utf8_iter 1.0.4
+Used by: embed_plist 1.2.2, seccompiler 0.5.0, serialize-to-javascript 0.1.2, siphasher 1.0.4, tinyvec 1.13.3, utf8_iter 1.0.4, zeroize 1.9.0
 
 ```text
 [Apache License 2.0: standard text, see "Standard licence texts" below]
@@ -3463,6 +3784,103 @@ Used by: embed_plist 1.2.2, serialize-to-javascript 0.1.2, siphasher 1.0.4, tiny
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+Used by: embedded-io 0.4.0
+
+```text
+Copyright (c) 2022 The embedded-io authors
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: embedded-io 0.6.1
+
+```text
+Copyright (c) 2023 The embedded-io authors
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: enumflags2 0.7.12
+
+```text
+Apache License
+
+Version 2.0, January 2004
+
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
+
+"Licensor" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.
+
+"Legal Entity" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
+
+"You" (or "Your") shall mean an individual or Legal Entity exercising permissions granted by this License.
+
+"Source" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.
+
+"Object" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.
+
+"Work" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).
+
+"Derivative Works" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.
+
+"Contribution" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as "Not a Contribution."
+
+"Contributor" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:
+
+You must give any other recipients of the Work or Derivative Works a copy of this License; and
+You must cause any modified files to carry prominent notices stating that You changed the files; and
+You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
+If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.
+
+You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
+5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+
+Copyright 2017-2023 Maik Klein, Maja Kądziołka
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Used by: enumflags2 0.7.12
+
+```text
+Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
+
+[MIT License: standard text, see "Standard licence texts" below]
 ```
 
 Used by: equivalent 1.0.2
@@ -3588,6 +4006,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+Used by: generic-array 0.14.7
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 Bartłomiej Kamiński
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: getrandom 0.3.4
 
 ```text
@@ -3614,7 +4042,7 @@ Copyright (c) 2016 Amanieu d'Antras
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
-Used by: heck 0.5.0, unicode-segmentation 1.13.3
+Used by: heck 0.5.0, unicode-bidi 0.3.18, unicode-normalization 0.1.25, unicode-segmentation 1.13.3
 
 ```text
 Copyright (c) 2015 The Rust Project Developers
@@ -3802,6 +4230,15 @@ Copyright (c) 2019 Bojan
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: inout 0.1.4
+
+```text
+Copyright (c) 2022 The RustCrypto Project Developers
+Copyright (c) 2022 Artyom Pavlov
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: javascriptcore-rs 1.1.2
 
 ```text
@@ -3882,6 +4319,59 @@ Copyright (c) 2017 Pyfisch
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: landlock 0.4.7
+
+```text
+Copyright 2020 Mickaël Salaün
+
+Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+<LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+option. All files in the project carrying such notice may not be
+copied, modified, or distributed except according to those terms.
+```
+
+Used by: landlock 0.4.7
+
+```text
+MIT License
+
+Copyright (c) 2020 Mickaël Salaün
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: landlock 0.4.7
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2020 Mickaël Salaün
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
 Used by: libappindicator 0.9.0
 
 ```text
@@ -3924,6 +4414,95 @@ Used by: lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12
 Copyright (c) 2016 The Rust Project Developers
 
 [MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: maybe-owned 0.3.4
+
+```text
+Copyright (c) 2016 Philipp Korber
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: maybe-owned 0.3.4
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright 2016 Philipp Korber
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Used by: md-5 0.10.6
+
+```text
+Copyright (c) 2006-2009 Graydon Hoare
+Copyright (c) 2009-2013 Mozilla Foundation
+Copyright (c) 2016 Artyom Pavlov
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: memmap2 0.9.11
+
+```text
+Copyright (c) 2020 Yevhenii Reizner
+Copyright (c) 2015 Dan Burkert
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: memmap2 0.9.11
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright [2015] [Dan Burkert]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
 
 Used by: memoffset 0.9.1
@@ -4424,12 +5003,33 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
+Used by: pdfium-render 0.9.4
+
+```text
+Licensed under either of
+
+* Apache License, Version 2.0 (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT License (LICENSE-MIT or http://opensource.org/licenses/MIT)
+
+at your option.
+```
+
 Used by: phf 0.13.1, phf_shared 0.13.1
 
 ```text
 The MIT License (MIT)
 
 Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: piston-float 1.0.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 PistonDevelopers
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -4446,6 +5046,14 @@ Used by: png 0.18.1
 
 ```text
 Copyright (c) 2015 nwin
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: postcard 1.1.3
+
+```text
+Copyright (c) 2019 Anthony James Munns
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -4563,18 +5171,41 @@ Copyright (c) 2016-2019 Ulrik Sverdrup "bluss" and scopeguard developers
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: seccompiler 0.5.0
+
+```text
+Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+may be used to endorse or promote products derived from this software without
+specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 Used by: serde_spanned 1.1.1, toml 1.1.6+spec-1.1.0, toml_datetime 1.1.1+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0, toml_writer 1.1.2+spec-1.1.0
 
 ```text
 Copyright (c) Individual contributors
-
-[MIT License: standard text, see "Standard licence texts" below]
-```
-
-Used by: serde_with 3.24.0
-
-```text
-Copyright (c) 2015
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -4762,22 +5393,6 @@ Copyright (c) Jacob Pratt et al.
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
-Used by: tinyvec 1.13.3
-
-```text
-Copyright (c) 2019 Daniel "Lokathor" Gee.
-
-This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
-
-Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
-
-1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
-
-2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
-
-3. This notice may not be removed or altered from any source distribution.
-```
-
 Used by: tokio 1.53.1
 
 ```text
@@ -4818,6 +5433,66 @@ PackageDownloadLocation: git://github.com/tauri-apps/tray-icon
 PackageDownloadLocation: git+https://github.com/tauri-apps/tray-icon.git
 PackageDownloadLocation: git+ssh://github.com/tauri-apps/tray-icon.git
 Creator: Person: Daniel Thompson-Yvetot
+```
+
+Used by: typenum 1.20.1
+
+```text
+MIT OR Apache-2.0
+```
+
+Used by: typenum 1.20.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 Paho Lurie-Gregg
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: typenum 1.20.1
+
+```text
+[Apache License 2.0: standard text, see "Standard licence texts" below]
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright 2014 Paho Lurie-Gregg
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Used by: unicode-bidi 0.3.18
+
+```text
+This project is copyright 2015, The Servo Project Developers (given in the
+file AUTHORS).
+
+Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+http://opensource.org/licenses/MIT>, at your option. All files in the project
+carrying such notice may not be copied, modified, or distributed except
+according to those terms.
 ```
 
 Used by: unicode-ident 1.0.26
@@ -4864,7 +5539,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ```
 
-Used by: unicode-segmentation 1.13.3
+Used by: unicode-normalization 0.1.25, unicode-segmentation 1.13.3
 
 ```text
 Licensed under the Apache License, Version 2.0
@@ -4882,6 +5557,17 @@ Used by: urlpattern 0.6.0
 MIT License
 
 Copyright (c) 2021 the Deno authors
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: utf16string 0.2.0
+
+```text
+MIT License
+
+Copyright (c) 2020 Armin Ronacher
+Copyright (c) 2019 Manish Goregaokar
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -4950,6 +5636,16 @@ Copyright (c) 2018 Ashley Mannix, Christopher Armstrong, Dylan DPC, Hunar Roop K
 [MIT License: standard text, see "Standard licence texts" below]
 ```
 
+Used by: vecmath 1.0.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 PistonDevelopers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: web-time 1.1.0
 
 ```text
@@ -5005,6 +5701,14 @@ Used by: webkit2gtk-sys 2.0.2
 
 ```text
 Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com>
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: winapi 0.3.9
+
+```text
+Copyright (c) 2015-2018 The winapi-rs Developers
 
 [MIT License: standard text, see "Standard licence texts" below]
 ```
@@ -5135,6 +5839,14 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/wry.git
 Creator: Person: Daniel Thompson-Yvetot
 ```
 
+Used by: zeroize 1.9.0
+
+```text
+Copyright (c) 2018-2026 The RustCrypto Project Developers
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
 Used by: zlib-rs 0.6.8
 
 ```text
@@ -5157,6 +5869,85 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 
 3. This notice may not be removed or altered from any source distribution.
+```
+
+Used by: zstd 0.13.3
+
+```text
+The MIT License (MIT)
+Copyright (c) 2016 Alexandre Bury
+
+[MIT License: standard text, see "Standard licence texts" below]
+```
+
+Used by: zstd-safe 7.3.0, zstd-sys 2.1.0+zstd.1.5.7
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2026, Alexandre Bury
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+Used by: zstd-sys 2.1.0+zstd.1.5.7
+
+```text
+The auto-generated bindings are under the 3-clause BSD license:
+
+BSD License
+
+For Zstandard software
+
+Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+ * Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+ * Neither the name Facebook, nor Meta, nor the names of its contributors may
+   be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## JavaScript packages (69)
