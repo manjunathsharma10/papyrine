@@ -553,3 +553,148 @@ fn editing_foreign_annotations_touches_only_themselves() {
     eprintln!("edited {edited} foreign annotations, refused {refused}");
     assert!(edited >= 40, "only {edited} edited");
 }
+
+/// `AnnotationTypes.pdf` was written by Adobe Acrobat Pro 11.0.23. Add, edit and delete our own
+/// annotations on every page and check that none of Acrobat's 36 annotations (nor their
+/// appearance streams) is rewritten: the incremental section contains none of their objects and
+/// every one reads back with identical content.
+#[test]
+fn acrobat_made_file_is_preserved_on_every_page() {
+    let rel = "pdfbox/pdfbox/src/test/resources/org/apache/pdfbox/pdmodel/interactive/annotation/AnnotationTypes.pdf";
+    let Some(bytes) = corpus_file(rel) else {
+        assert!(!tools_required());
+        eprintln!("AnnotationTypes.pdf not in the corpus cache: skipping");
+        return;
+    };
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("Adobe Acrobat Pro"),
+        "producer"
+    );
+    let doc = Document::open_bytes(bytes.clone(), &papyrine_cos::OpenOptions::default()).unwrap();
+    let before = snapshot(&doc);
+    let mut originals: Vec<(usize, ObjId, Vec<u8>)> = Vec::new();
+    let mut holders: BTreeSet<ObjId> = BTreeSet::new();
+    for pi in 0..doc.page_count().unwrap() {
+        let page = doc.page(pi).unwrap();
+        let an = page.dict_get("Annots").unwrap();
+        if an.kind().unwrap() != ObjectKind::Array {
+            continue;
+        }
+        holders.insert(page.id().unwrap());
+        if let Some(id) = an.id() {
+            holders.insert(id);
+        }
+        for a in an.array_items().unwrap() {
+            if let Some(id) = a.id() {
+                originals.push((pi, id, a.unparse_with(true).unwrap()));
+            }
+        }
+    }
+    assert!(
+        originals.len() >= 30,
+        "{} Acrobat annotations",
+        originals.len()
+    );
+    let mut hist = history();
+    let mut dirty: BTreeSet<ObjId> = BTreeSet::new();
+    let pages_with: BTreeSet<usize> = originals.iter().map(|o| o.0).collect();
+    for &pi in &pages_with {
+        let mb = media_box(&doc.page(pi).unwrap());
+        let (x, y) = (mb[0] + 40.0, mb[1] + 40.0);
+        let mut mine = Vec::new();
+        for c in [
+            AddAnnotation::highlight(
+                pi,
+                vec![Quad::from_rect(x, y, x + 90.0, y + 12.0)],
+                AnnotProps::default(),
+            ),
+            AddAnnotation::text_box(
+                pi,
+                [x, y + 30.0, x + 160.0, y + 70.0],
+                TextStyle::default(),
+                "mine",
+                AnnotProps::default(),
+            ),
+            AddAnnotation::rectangle(
+                pi,
+                [x + 200.0, y, x + 260.0, y + 40.0],
+                AnnotProps::default().with_width(2.0),
+            ),
+        ] {
+            let s = hist.execute(&doc, Box::new(c)).unwrap();
+            dirty.extend(s.touched.iter().chain(&s.created).filter(|i| i.num != 0));
+            mine.push(s.created[0]);
+        }
+        let s = hist
+            .execute(
+                &doc,
+                Box::new(UpdateAnnotation::new(
+                    pi,
+                    AnnotRef::id(mine[2]),
+                    PropsPatch::new(AnnotProps::default().with_color(Color::rgb(0.0, 0.0, 1.0))),
+                )),
+            )
+            .unwrap();
+        dirty.extend(s.touched.iter().chain(&s.created).filter(|i| i.num != 0));
+        let s = hist
+            .execute(
+                &doc,
+                Box::new(DeleteAnnotations::new(pi, vec![AnnotRef::id(mine[0])])),
+            )
+            .unwrap();
+        dirty.extend(s.touched.iter().filter(|i| i.num != 0));
+    }
+    // Nothing of Acrobat's changed in memory...
+    for (id, img) in &before {
+        if holders.contains(id)
+            || *id == TRAILER
+            || dirty.contains(id) && !originals.iter().any(|o| o.1 == *id)
+        {
+            continue;
+        }
+        assert_eq!(
+            &ObjectImage::capture(&doc, *id).unwrap(),
+            img,
+            "object {id}"
+        );
+    }
+    // ...nor in the incremental section.
+    let chain = ChainState::scan(bytes.as_slice()).unwrap();
+    let sec = write_section(
+        &doc,
+        &chain,
+        &SectionRequest {
+            dirty: dirty.iter().copied().collect(),
+            freed: Vec::new(),
+            new_id: Some([1; 16]),
+        },
+    )
+    .unwrap();
+    let written: BTreeSet<ObjId> = sec.objects.iter().map(|o| o.0).collect();
+    for (pi, id, _) in &originals {
+        assert!(
+            !written.contains(id),
+            "Acrobat annotation {id} (page {pi}) was rewritten"
+        );
+    }
+    let mut full = bytes.clone();
+    full.extend_from_slice(&sec.bytes);
+    assert_eq!(&full[..bytes.len()], &bytes[..]);
+    let re = Document::open_bytes(full.clone(), &papyrine_cos::OpenOptions::default()).unwrap();
+    for (_, id, text) in &originals {
+        assert_eq!(
+            &re.object(*id).unwrap().unparse_with(true).unwrap(),
+            text,
+            "annotation {id}"
+        );
+    }
+    if let Err(e) = qpdf_check(&full) {
+        // Only acceptable when the original already fails the same check.
+        assert!(qpdf_check(&bytes).is_err(), "check regressed: {e}");
+    }
+    eprintln!(
+        "Acrobat file: {} annotations on {} pages preserved",
+        originals.len(),
+        pages_with.len()
+    );
+}

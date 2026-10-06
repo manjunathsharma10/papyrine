@@ -398,3 +398,87 @@ fn commands_rebuild_from_params() {
     assert_eq!(a.name.as_deref(), c.props.name.as_deref());
     assert_eq!(a.modified_raw.as_deref(), c.props.modified.as_deref());
 }
+
+/// Every field the command wrote reads back identically (geometry and properties).
+#[test]
+fn read_spec_reproduces_the_written_spec_for_every_type() {
+    let styles = TextStyle {
+        family: FontFamily::Mono,
+        bold: true,
+        size: 11.5,
+        color: Color::rgb(0.25, 0.5, 0.75),
+        align: Align::Right,
+    };
+    let mut dashed = props().with_width(2.5);
+    dashed.dash = vec![3.0, 1.5];
+    let cmds = vec![
+        AddAnnotation::highlight(
+            0,
+            vec![
+                Quad::from_rect(20.0, 350.0, 120.0, 380.0),
+                Quad::from_rect(20.0, 320.0, 80.0, 340.0),
+            ],
+            props().with_opacity(0.4),
+        ),
+        AddAnnotation::underline(
+            0,
+            quad(),
+            props().with_width(2.0).with_color(Color::gray(0.3)),
+        ),
+        AddAnnotation::strike_out(0, quad(), props()),
+        AddAnnotation::squiggly(
+            0,
+            quad(),
+            props().with_color(Color(vec![0.1, 0.2, 0.3, 0.4])),
+        ),
+        AddAnnotation::sticky_note(0, 100.0, 300.0, props()),
+        AddAnnotation::new(
+            0,
+            Geometry::Note {
+                pos: [50.0, 250.0],
+                icon: "Comment".into(),
+            },
+            props(),
+        ),
+        AddAnnotation::text_box(
+            0,
+            [50.0, 200.0, 250.0, 260.0],
+            styles,
+            "Two\nlines Привет",
+            props().with_width(1.0).with_fill(Color::rgb(0.9, 0.9, 0.5)),
+        ),
+        AddAnnotation::pen(
+            0,
+            vec![vec![[1.0, 2.0], [3.5, 4.25]], vec![[9.0, 9.0]]],
+            dashed.clone(),
+        ),
+        AddAnnotation::rectangle(
+            0,
+            [50.0, 50.0, 150.0, 120.0],
+            dashed.clone().with_fill(Color::gray(0.5)),
+        ),
+        AddAnnotation::oval(0, [50.0, 50.0, 150.0, 120.0], props().with_opacity(0.75)),
+        AddAnnotation::line(0, [50.0, 50.0], [250.0, 150.5], props().with_width(0.5)),
+        AddAnnotation::arrow(0, [250.0, 150.0], [50.0, 50.0], props()),
+        AddAnnotation::new(
+            0,
+            Geometry::Line {
+                from: [1.0, 1.0],
+                to: [90.0, 40.0],
+                start: LineEnding::Diamond,
+                end: LineEnding::RClosedArrow,
+            },
+            props().with_fill(Color::rgb(0.0, 1.0, 0.0)),
+        ),
+    ];
+    for cmd in cmds {
+        let want = Spec::new(cmd.geometry.clone(), cmd.props.clone()).resolved();
+        let doc = open(build_pdf(1));
+        let mut h = history();
+        run(&doc, &mut h, cmd);
+        let reopened = roundtrip(&doc);
+        let a = page_annots(&reopened, 0).remove(0);
+        let got = read_spec(&a).expect("readable");
+        assert_eq!(got, want);
+    }
+}

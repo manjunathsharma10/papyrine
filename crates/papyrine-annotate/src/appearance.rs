@@ -743,3 +743,169 @@ pub fn default_style_string(style: &TextStyle) -> String {
         (rgb[2] * 255.0).round() as u8
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::{Align, FontFamily};
+    use crate::props::AnnotProps;
+
+    fn text_of(spec: &Spec) -> String {
+        String::from_utf8(build(spec).unwrap().content).unwrap()
+    }
+
+    #[test]
+    fn highlight_fills_the_quad_in_z_order_with_multiply() {
+        let spec = Spec::new(
+            Geometry::highlight(vec![Quad::from_rect(10.0, 20.0, 110.0, 40.0)]),
+            AnnotProps::default(),
+        );
+        let a = build(&spec).unwrap();
+        assert!(a.multiply && a.opacity.is_none());
+        assert_eq!(a.rect, [10.0, 20.0, 110.0, 40.0]);
+        // p1 p2 p4 p3: top-left, top-right, bottom-right, bottom-left.
+        assert_eq!(
+            String::from_utf8(a.content).unwrap(),
+            "q\n/GS0 gs\n1 1 0 rg\n10 40 m\n110 40 l\n110 20 l\n10 20 l\nh\nf\nQ\n"
+        );
+    }
+
+    #[test]
+    fn shapes_inset_the_path_by_half_the_border() {
+        let spec = Spec::new(
+            Geometry::Square {
+                rect: [0.0, 0.0, 100.0, 50.0],
+            },
+            AnnotProps::default().with_width(4.0),
+        );
+        let a = build(&spec).unwrap();
+        assert_eq!(a.rd, Some([2.0; 4]));
+        assert!(
+            String::from_utf8(a.content)
+                .unwrap()
+                .contains("2 2 96 46 re")
+        );
+    }
+
+    #[test]
+    fn opacity_sets_the_graphics_state() {
+        let spec = Spec::new(
+            Geometry::Circle {
+                rect: [0.0, 0.0, 10.0, 10.0],
+            },
+            AnnotProps::default().with_opacity(0.4),
+        );
+        let a = build(&spec).unwrap();
+        assert_eq!(a.opacity, Some(0.4));
+        assert!(text_of(&spec).contains("/GS0 gs"));
+        assert!(!a.multiply);
+    }
+
+    #[test]
+    fn markup_rect_covers_the_stroke() {
+        let q = Quad::from_rect(10.0, 10.0, 60.0, 30.0);
+        let spec = Spec::new(
+            Geometry::underline(vec![q]),
+            AnnotProps::default().with_width(3.0),
+        );
+        let a = build(&spec).unwrap();
+        assert!(a.rect[0] < 10.0 && a.rect[1] < 10.0 && a.rect[2] > 60.0 && a.rect[3] > 30.0);
+    }
+
+    #[test]
+    fn da_and_ds_and_rc_strings() {
+        let st = TextStyle {
+            family: FontFamily::Mono,
+            bold: true,
+            size: 9.5,
+            color: Color::rgb(1.0, 0.0, 0.5),
+            align: Align::Right,
+        };
+        assert_eq!(default_appearance(&st), "/CoBo 9.5 Tf 1 0 0.5 rg");
+        assert_eq!(
+            default_style_string(&st),
+            "font: Courier New,monospace 9.5pt bold; text-align:right; color:#FF0080"
+        );
+        let rc = rich_content("a <b> & c\nline2", &st);
+        assert!(rc.contains("a &lt;b&gt; &amp; c"));
+        assert_eq!(rc.matches("<p ").count(), 2);
+        assert_eq!(
+            crate::objects::parse_da(&default_appearance(&st)),
+            st.clone().with_align_default()
+        );
+    }
+
+    trait AlignDefault {
+        fn with_align_default(self) -> Self;
+    }
+    impl AlignDefault for TextStyle {
+        // `/DA` carries no alignment (that is `/Q`).
+        fn with_align_default(mut self) -> Self {
+            self.align = Align::Left;
+            self
+        }
+    }
+
+    #[test]
+    fn line_endings_extend_the_rect() {
+        use LineEnding::*;
+        let plain = build(&Spec::new(
+            Geometry::line([0.0, 0.0], [100.0, 0.0]),
+            AnnotProps::default(),
+        ))
+        .unwrap();
+        let arrow = build(&Spec::new(
+            Geometry::Line {
+                from: [0.0, 0.0],
+                to: [100.0, 0.0],
+                start: ClosedArrow,
+                end: ClosedArrow,
+            },
+            AnnotProps::default(),
+        ))
+        .unwrap();
+        assert!(
+            arrow.rect[3] > plain.rect[3] + 2.0,
+            "{:?} vs {:?}",
+            arrow.rect,
+            plain.rect
+        );
+    }
+
+    #[test]
+    fn balanced_for_every_type() {
+        let p = || AnnotProps::default().with_fill(Color::gray(0.9));
+        for g in [
+            Geometry::highlight(vec![Quad::from_rect(0.0, 0.0, 9.0, 9.0)]),
+            Geometry::squiggly(vec![Quad::from_rect(0.0, 0.0, 99.0, 9.0)]),
+            Geometry::note(10.0, 30.0),
+            Geometry::Ink {
+                strokes: vec![
+                    vec![[0.0, 0.0]],
+                    vec![[0.0, 0.0], [5.0, 5.0]],
+                    vec![[0.0, 0.0], [5.0, 5.0], [9.0, 0.0], [12.0, 7.0]],
+                ],
+            },
+            Geometry::Square {
+                rect: [0.0, 0.0, 9.0, 9.0],
+            },
+            Geometry::arrow([0.0, 0.0], [20.0, 20.0]),
+        ] {
+            let a = build(&Spec::new(g, p())).unwrap();
+            let parsed = papyrine_content::parse(&a.content);
+            assert!(parsed.errors.is_empty());
+            let (mut q, mut bt) = (0i32, 0i32);
+            for op in &parsed.ops {
+                match op.operator.as_slice() {
+                    b"q" => q += 1,
+                    b"Q" => q -= 1,
+                    b"BT" => bt += 1,
+                    b"ET" => bt -= 1,
+                    _ => {}
+                }
+                assert!(q >= 0 && bt >= 0);
+            }
+            assert_eq!((q, bt), (0, 0));
+        }
+    }
+}

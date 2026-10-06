@@ -48,16 +48,18 @@ fn box_cmd(text: &str, size: f64) -> AddAnnotation {
 fn add(cmd: AddAnnotation) -> (Document, FontReport) {
     let doc = open(build_pdf(1));
     let mut h = history();
-    let mut cmd = cmd;
-    // Execute through History for the shadow check, but keep the report via a clone.
-    h.execute(&doc, Box::new(cmd.clone())).unwrap();
-    let report = {
-        // `apply` on a throwaway document to read the report the command computed.
-        let scratch = open(build_pdf(1));
-        let mut cx = papyrine_ops::EditContext::new(&scratch).unwrap();
-        papyrine_ops::Command::apply(&mut cmd, &mut cx).unwrap();
-        cmd.font_report().cloned().unwrap()
+    // The report is computed by `apply`; the same text analysed up front gives the same answer.
+    let (Geometry::TextBox { style, .. }, Some(text)) = (&cmd.geometry, &cmd.props.contents) else {
+        unreachable!("text boxes only");
     };
+    let report = papyrine_annotate::text::analyze(text, style);
+    h.execute(&doc, Box::new(cmd.clone())).unwrap();
+    // `apply` on a scratch document exposes the command's own report.
+    let mut c2 = cmd;
+    let scratch = open(build_pdf(1));
+    let mut cx = papyrine_ops::EditContext::new(&scratch).unwrap();
+    papyrine_ops::Command::apply(&mut c2, &mut cx).unwrap();
+    assert_eq!(c2.font_report(), Some(&report));
     (doc, report)
 }
 

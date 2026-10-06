@@ -623,7 +623,12 @@ fn performance_budget() {
     let t = Instant::now();
     let _ = write_bytes(&doc);
     eprintln!(
-        "perf (debug build): 5000-quad highlight {t_hl:?}, 20k-point ink {t_ink:?}, text box {t_tb:?}, write {:?}",
+        "perf ({}): 5000-quad highlight {t_hl:?}, 20k-point ink {t_ink:?}, text box {t_tb:?}, write {:?}",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
         t.elapsed()
     );
     assert!(t_hl.as_secs() < 10 && t_ink.as_secs() < 10 && t_tb.as_secs() < 5);

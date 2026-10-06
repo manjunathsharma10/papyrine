@@ -32,14 +32,17 @@ fn text_string(doc: &Document, s: &str) -> Result<Object> {
 }
 
 /// `dict[key] = value`, or removes the key when `value` is `None`.
-fn put(doc: &Document, dict: &Object, key: &str, value: Option<Object>) -> Result<()> {
+fn put(dict: &Object, key: &str, value: Option<Object>) -> Result<()> {
     match value {
         Some(v) => dict.dict_set(key, &v)?,
         None => dict.dict_remove(key)?,
     }
-    let _ = doc;
     Ok(())
 }
+
+/// Private marker on appearance streams written by this crate. Only these are rewritten in
+/// place on a later edit; a stream from another producer might be shared between annotations.
+const OWN_AP: &str = "Papyrine_AP";
 
 /// Dates and name chosen when the command was built.
 pub struct Fixed<'a> {
@@ -74,7 +77,6 @@ pub fn fill_annotation(
     annot.dict_set("C", &num_array(doc, &spec.color().0)?)?;
     let ca = spec.opacity();
     put(
-        doc,
         annot,
         "CA",
         ((ca - 1.0).abs() > 1e-9)
@@ -82,7 +84,6 @@ pub fn fill_annotation(
             .transpose()?,
     )?;
     put(
-        doc,
         annot,
         "T",
         p.author
@@ -91,7 +92,6 @@ pub fn fill_annotation(
             .transpose()?,
     )?;
     put(
-        doc,
         annot,
         "Subj",
         p.subject
@@ -100,7 +100,6 @@ pub fn fill_annotation(
             .transpose()?,
     )?;
     put(
-        doc,
         annot,
         "Contents",
         Some(text_string(doc, p.contents.as_deref().unwrap_or(""))?),
@@ -115,7 +114,6 @@ pub fn fill_annotation(
         annot.dict_set("NM", &text_string(doc, n)?)?;
     }
     put(
-        doc,
         annot,
         "IC",
         p.fill.as_ref().map(|c| num_array(doc, &c.0)).transpose()?,
@@ -152,12 +150,7 @@ pub fn fill_annotation(
     } else {
         annot.dict_remove("BS")?;
     }
-    put(
-        doc,
-        annot,
-        "RD",
-        app.rd.map(|r| num_array(doc, &r)).transpose()?,
-    )?;
+    put(annot, "RD", app.rd.map(|r| num_array(doc, &r)).transpose()?)?;
 
     match &spec.geometry {
         Geometry::TextMarkup { quads, .. } => {
@@ -218,7 +211,13 @@ pub fn write_appearance(cx: &mut EditContext<'_>, annot: &Object, app: &Appearan
             }
         })
         .ok()
-        .filter(|n| n.is_indirect() && n.kind().ok() == Some(ObjectKind::Stream));
+        .filter(|n| {
+            n.is_indirect()
+                && n.kind().ok() == Some(ObjectKind::Stream)
+                && n.stream_dict()
+                    .and_then(|d| d.dict_has(OWN_AP))
+                    .unwrap_or(false)
+        });
     let stream = match existing {
         Some(s) => {
             cx.touch(&s)?;
@@ -254,6 +253,7 @@ pub fn write_appearance(cx: &mut EditContext<'_>, annot: &Object, app: &Appearan
     dict.dict_set("Type", &doc.new_name("XObject")?)?;
     dict.dict_set("Subtype", &doc.new_name("Form")?)?;
     dict.dict_set("FormType", &doc.new_int(1))?;
+    dict.dict_set(OWN_AP, &doc.new_bool(true))?;
     dict.dict_set("BBox", &num_array(doc, &app.bbox)?)?;
     dict.dict_set("Resources", &res)?;
     if app.content.len() > 512 {

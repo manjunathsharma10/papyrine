@@ -47,6 +47,38 @@ impl Spec {
     }
 }
 
+impl Spec {
+    /// The spec as it reads back from a file: defaults filled in and values normalised the way
+    /// they are stored (opacity 1 is absent, empty contents are absent). `read_spec` of a
+    /// written annotation equals `resolved()` of the spec that was written.
+    pub fn resolved(&self) -> Spec {
+        let mut p = self.props.clone();
+        p.color = Some(self.color());
+        p.opacity = ((self.opacity() - 1.0).abs() > 1e-9).then(|| self.opacity());
+        let has_bs = !matches!(self.geometry, Geometry::Note { .. })
+            && !matches!(
+                self.geometry,
+                Geometry::TextMarkup {
+                    kind: MarkupKind::Highlight,
+                    ..
+                }
+            );
+        p.width = has_bs.then(|| self.width());
+        p.flags = Some(p.flags.unwrap_or(match self.geometry {
+            Geometry::Note { .. } => crate::props::flags::NOTE_DEFAULT,
+            _ => crate::props::flags::PRINT,
+        }));
+        p.contents = p.contents.filter(|c| !c.is_empty());
+        if !has_bs || p.dash.is_empty() {
+            p.dash.clear();
+        }
+        Spec {
+            geometry: self.geometry.clone(),
+            props: p,
+        }
+    }
+}
+
 pub fn default_color(g: &Geometry) -> Color {
     match g {
         Geometry::TextMarkup { kind, .. } => match kind {
