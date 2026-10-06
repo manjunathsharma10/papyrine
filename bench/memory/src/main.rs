@@ -373,7 +373,9 @@ fn run_pdfium(file: &str, args: &[String]) {
     let mut doc = render::Document::open(&lib, base, &[], None).expect("open");
     let open_ms = t0.elapsed().as_millis();
     let after_open = mem::footprint();
-    let pages = doc.page_count();
+    let pages = doc
+        .page_count()
+        .min(arg_val(args, "--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX));
     let t1 = Instant::now();
     let (mut ok, mut failed) = (0usize, 0usize);
     let mut cancel = || false;

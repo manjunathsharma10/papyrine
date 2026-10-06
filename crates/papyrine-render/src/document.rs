@@ -1,5 +1,6 @@
 //! PDFium document wrapper: open over a [`MultiBuf`], tile/preview rendering,
-//! text layer, 8-page cache.
+//! text layer, page cache, and a form-fill environment used **only to draw**
+//! widget appearances (`FPDF_FFLDraw`); field state never lives in PDFium.
 
 use crate::error::{Error, Result};
 use crate::library::Library;
@@ -70,11 +71,33 @@ pub struct PageText {
     pub chars: Vec<CharBox>,
 }
 
+/// Page text in compact, cache-friendly form (see [`Document::page_glyphs`]).
+#[derive(Debug, Clone, Default)]
+pub struct Glyphs {
+    pub chars: Vec<char>,
+    /// Tight glyph boxes `[left, bottom, right, top]`, page user space.
+    pub tight: Vec<[f32; 4]>,
+    /// Loose (font metrics) boxes, same layout.
+    pub loose: Vec<[f32; 4]>,
+}
+
+impl Glyphs {
+    /// Approximate heap bytes, for cache accounting.
+    pub fn heap_bytes(&self) -> usize {
+        self.chars.len() * (4 + 16 + 16)
+    }
+}
+
 /// Keeps the file-access struct and the buffer it points at alive and pinned.
 struct Inner {
     lib: Arc<Library>,
     handle: FPDF_DOCUMENT,
     access: Box<Access>,
+    /// Form-fill environment, null for documents without an AcroForm. Used
+    /// for `FPDF_FFLDraw` only: no event, focus or script call is ever made.
+    form: FPDF_FORMHANDLE,
+    /// Must stay at a fixed address while `form` is alive.
+    form_info: Box<FPDF_FORMFILLINFO>,
 }
 
 #[repr(C)]
@@ -129,19 +152,44 @@ impl Inner {
                 c => Error::Other(format!("PDFium error {c}")),
             });
         }
+        // SAFETY: an all-zero FORMFILLINFO is valid (null callbacks); version 1 uses
+        // only the stable interface, and every callback PDFium may invoke is optional.
+        let mut form_info: Box<FPDF_FORMFILLINFO> = Box::new(unsafe { std::mem::zeroed() });
+        form_info.version = 1;
+        let mut form = ptr::null_mut();
+        // SAFETY: valid doc handle; `form_info` is boxed and outlives `form` (see Drop).
+        unsafe {
+            if lib.bindings.FPDF_GetFormType(handle) != 0 {
+                form = lib
+                    .bindings
+                    .FPDFDOC_InitFormFillEnvironment(handle, &mut *form_info);
+                if !form.is_null() {
+                    // No tint over fields: appearances only.
+                    lib.bindings.FPDF_SetFormFieldHighlightAlpha(form, 0);
+                }
+            }
+        }
         Ok(Inner {
             lib: lib.clone(),
             handle,
             access,
+            form,
+            form_info,
         })
     }
 }
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        // SAFETY: handle came from FPDF_LoadCustomDocument; `access` drops afterwards.
-        unsafe { self.lib.bindings.FPDF_CloseDocument(self.handle) };
-        let _ = &self.access;
+        // SAFETY: handle came from FPDF_LoadCustomDocument; the form environment
+        // is exited first; `access` and `form_info` drop afterwards.
+        unsafe {
+            if !self.form.is_null() {
+                self.lib.bindings.FPDFDOC_ExitFormFillEnvironment(self.form);
+            }
+            self.lib.bindings.FPDF_CloseDocument(self.handle);
+        }
+        let _ = (&self.access, &self.form_info);
     }
 }
 
@@ -159,6 +207,10 @@ pub struct Document {
     page_count: usize,
     /// Most recently used first.
     cache: Vec<CachedPage>,
+    /// Pages kept loaded at once (<= [`PAGE_CACHE_CAP`] by default).
+    cap: usize,
+    /// Pages parsed since the document was (re)opened.
+    loads: u64,
 }
 
 // SAFETY: PDFium handles have no thread affinity; every call goes through the
@@ -201,6 +253,8 @@ impl Document {
             password: password.map(String::from),
             page_count,
             cache: Vec::new(),
+            cap: PAGE_CACHE_CAP,
+            loads: 0,
         })
     }
 
@@ -226,6 +280,7 @@ impl Document {
         // SAFETY: valid handle.
         self.page_count = unsafe { lib.bindings.FPDF_GetPageCount(inner.handle) }.max(0) as usize;
         self.inner = inner; // drops (closes) the old document
+        self.loads = 0;
         Ok(())
     }
 
@@ -286,11 +341,83 @@ impl Document {
         Ok(((r.rem_euclid(4)) * 90) as u16)
     }
 
+    /// Page /Rotate without keeping the page loaded (PDFium does not parse the
+    /// content stream until the first render, so this is cheap).
+    pub fn page_rotation_uncached(&self, index: usize) -> Result<u16> {
+        self.check(index)?;
+        // SAFETY: valid doc handle, in-range index; the page is closed before returning.
+        unsafe {
+            let page = self.b().FPDF_LoadPage(self.inner.handle, index as c_int);
+            if page.is_null() {
+                return Err(Error::PageLoad(index));
+            }
+            let r = self.b().FPDFPage_GetRotation(page);
+            self.b().FPDF_ClosePage(page);
+            Ok(((r.rem_euclid(4)) * 90) as u16)
+        }
+    }
+
     fn clear_cache(&mut self) {
         let lib = self.inner.lib.clone();
+        let form = self.inner.form;
         for c in self.cache.drain(..) {
-            close_cached(lib.bindings.as_ref(), &c);
+            close_cached(lib.bindings.as_ref(), form, &c);
         }
+    }
+
+    /// Close every cached page (PDFium frees the parsed page and its decoded
+    /// images; the document-level object store stays until [`Self::reopen`]).
+    pub fn close_pages(&mut self) {
+        self.clear_cache();
+    }
+
+    /// Close all cached pages except `keep`.
+    pub fn close_pages_except(&mut self, keep: usize) {
+        let lib = self.inner.lib.clone();
+        let form = self.inner.form;
+        let (kept, dropped): (Vec<_>, Vec<_>) = self.cache.drain(..).partition(|c| c.index == keep);
+        self.cache = kept;
+        for c in dropped {
+            close_cached(lib.bindings.as_ref(), form, &c);
+        }
+    }
+
+    /// Close one cached page (no-op when it is not cached).
+    pub fn close_page(&mut self, index: usize) {
+        if let Some(pos) = self.cache.iter().position(|c| c.index == index) {
+            let c = self.cache.remove(pos);
+            close_cached(self.b(), self.inner.form, &c);
+        }
+    }
+
+    /// Limit how many pages stay loaded (1 ..= [`PAGE_CACHE_CAP`]); extra
+    /// pages are closed now.
+    pub fn set_page_cache_cap(&mut self, cap: usize) {
+        self.cap = cap.clamp(1, PAGE_CACHE_CAP);
+        while self.cache.len() > self.cap {
+            if let Some(old) = self.cache.pop() {
+                close_cached(self.b(), self.inner.form, &old);
+            }
+        }
+    }
+
+    pub fn page_cache_cap(&self) -> usize {
+        self.cap
+    }
+
+    /// Pages parsed since the document was opened or re-opened.
+    pub fn pages_loaded(&self) -> u64 {
+        self.loads
+    }
+
+    /// True when widget appearances are drawn through a form-fill environment.
+    pub fn has_form_env(&self) -> bool {
+        !self.inner.form.is_null()
+    }
+
+    /// Cheap check used before touching a page: is it already parsed?
+    pub fn is_page_cached(&self, index: usize) -> bool {
+        self.cache.iter().any(|c| c.index == index)
     }
 
     /// Make `index` the most-recently-used cached page (loading it if needed).
@@ -305,10 +432,15 @@ impl Document {
             if page.is_null() {
                 return Err(Error::PageLoad(index));
             }
-            if self.cache.len() >= PAGE_CACHE_CAP
+            self.loads += 1;
+            if !self.inner.form.is_null() {
+                // SAFETY: valid page and form handles; creates the page view FFLDraw needs.
+                unsafe { self.b().FORM_OnAfterLoadPage(page, self.inner.form) };
+            }
+            while self.cache.len() >= self.cap
                 && let Some(old) = self.cache.pop()
             {
-                close_cached(self.b(), &old);
+                close_cached(self.b(), self.inner.form, &old);
             }
             self.cache.insert(
                 0,
@@ -347,6 +479,25 @@ impl Document {
         coord: TileCoord,
         cancel: &mut dyn FnMut() -> bool,
     ) -> Result<Tile> {
+        let mut rgba = Vec::new();
+        let (width, height) = self.render_tile_into(index, bucket, coord, &mut rgba, cancel)?;
+        Ok(Tile {
+            width,
+            height,
+            rgba,
+        })
+    }
+
+    /// Like [`Self::render_tile`], writing RGBA into `out` (resized, reusable
+    /// scratch so the steady state allocates nothing). Returns `(width, height)`.
+    pub fn render_tile_into(
+        &mut self,
+        index: usize,
+        bucket: i32,
+        coord: TileCoord,
+        out: &mut Vec<u8>,
+        cancel: &mut dyn FnMut() -> bool,
+    ) -> Result<(u32, u32)> {
         let (wp, hp) = self.page_size(index)?;
         let bucket = tiles::clamp_bucket_for_page(bucket, wp, hp);
         let grid = tiles::page_grid(wp, hp, bucket);
@@ -361,8 +512,10 @@ impl Document {
             -(r.y as i32),
             grid.width_px as i32,
             grid.height_px as i32,
+            out,
             cancel,
-        )
+        )?;
+        Ok((r.w, r.h))
     }
 
     /// Low-resolution whole-page preview whose longest side is at most `max_edge` px.
@@ -372,11 +525,28 @@ impl Document {
         max_edge: u32,
         cancel: &mut dyn FnMut() -> bool,
     ) -> Result<Tile> {
+        let mut rgba = Vec::new();
+        let (width, height) = self.render_preview_into(index, max_edge, &mut rgba, cancel)?;
+        Ok(Tile {
+            width,
+            height,
+            rgba,
+        })
+    }
+
+    pub fn render_preview_into(
+        &mut self,
+        index: usize,
+        max_edge: u32,
+        out: &mut Vec<u8>,
+        cancel: &mut dyn FnMut() -> bool,
+    ) -> Result<(u32, u32)> {
         let (wp, hp) = self.page_size(index)?;
         let k = max_edge.max(1) as f32 / wp.max(hp).max(1.0);
         let w = ((wp * k).round() as u32).max(1);
         let h = ((hp * k).round() as u32).max(1);
-        self.render_region(index, w, h, 0, 0, w as i32, h as i32, cancel)
+        self.render_region(index, w, h, 0, 0, w as i32, h as i32, out, cancel)?;
+        Ok((w, h))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -389,18 +559,21 @@ impl Document {
         sy: i32,
         size_x: i32,
         size_y: i32,
+        out: &mut Vec<u8>,
         cancel: &mut dyn FnMut() -> bool,
-    ) -> Result<Tile> {
+    ) -> Result<()> {
         let page = self.load_page(index)?.page;
-        let mut rgba = vec![0u8; w as usize * h as usize * 4];
+        let form = self.inner.form;
+        out.clear();
+        out.resize(w as usize * h as usize * 4, 0);
         let b = self.inner.lib.bindings.as_ref();
-        // SAFETY: `rgba` outlives the bitmap (destroyed below); stride matches.
+        // SAFETY: `out` outlives the bitmap (destroyed below); stride matches.
         let bitmap = unsafe {
             b.FPDFBitmap_CreateEx(
                 w as c_int,
                 h as c_int,
                 FPDFBITMAP_BGRA,
-                rgba.as_mut_ptr() as *mut c_void,
+                out.as_mut_ptr() as *mut c_void,
                 (w * 4) as c_int,
             )
         };
@@ -434,6 +607,10 @@ impl Document {
             while st == RENDER_TOBECONTINUED && !pause.cancelled {
                 st = b.FPDF_RenderPage_Continue(page, praw);
             }
+            if st == RENDER_DONE && !form.is_null() {
+                // Widgets are skipped by FPDF_RenderPageBitmap; draw their appearances.
+                b.FPDF_FFLDraw(form, bitmap, page, sx, sy, size_x, size_y, 0, RENDER_FLAGS);
+            }
             b.FPDF_RenderPage_Close(page);
             b.FPDFBitmap_Destroy(bitmap);
             st
@@ -444,11 +621,47 @@ impl Document {
         if status != RENDER_DONE {
             return Err(Error::Render(format!("status {status}")));
         }
-        Ok(Tile {
-            width: w,
-            height: h,
-            rgba,
-        })
+        Ok(())
+    }
+
+    /// Page text as flat vectors (one entry per PDFium char index): the compact
+    /// form used by search and the text cache. Boxes are `[left, bottom, right, top]`.
+    pub fn page_glyphs(&mut self, index: usize) -> Result<Glyphs> {
+        let tp = self.text_page(index)?;
+        let b = self.b();
+        // SAFETY: valid text page for the whole block.
+        let n = unsafe { b.FPDFText_CountChars(tp) }.max(0);
+        let mut g = Glyphs {
+            chars: Vec::with_capacity(n as usize),
+            tight: Vec::with_capacity(n as usize),
+            loose: Vec::with_capacity(n as usize),
+        };
+        for i in 0..n {
+            let (mut l, mut r, mut bo, mut t) = (0.0, 0.0, 0.0, 0.0);
+            let mut rect = FS_RECTF {
+                left: 0.0,
+                top: 0.0,
+                right: 0.0,
+                bottom: 0.0,
+            };
+            // SAFETY: valid text page, in-range index, valid out pointers.
+            let code = unsafe {
+                b.FPDFText_GetCharBox(tp, i, &mut l, &mut r, &mut bo, &mut t);
+                if b.FPDFText_GetLooseCharBox(tp, i, &mut rect) == 0 {
+                    rect = FS_RECTF {
+                        left: l as f32,
+                        top: t as f32,
+                        right: r as f32,
+                        bottom: bo as f32,
+                    };
+                }
+                b.FPDFText_GetUnicode(tp, i)
+            };
+            g.chars.push(char::from_u32(code).unwrap_or('\u{FFFD}'));
+            g.tight.push([l as f32, bo as f32, r as f32, t as f32]);
+            g.loose.push([rect.left, rect.bottom, rect.right, rect.top]);
+        }
+        Ok(g)
     }
 
     /// Extract the page text layer with per-char boxes.
@@ -512,11 +725,15 @@ impl Document {
     }
 }
 
-fn close_cached(b: &dyn PdfiumLibraryBindings, c: &CachedPage) {
-    // SAFETY: handles came from FPDF_LoadPage / FPDFText_LoadPage and are closed once.
+fn close_cached(b: &dyn PdfiumLibraryBindings, form: FPDF_FORMHANDLE, c: &CachedPage) {
+    // SAFETY: handles came from FPDF_LoadPage / FPDFText_LoadPage and are closed once;
+    // the page view is released before the page.
     unsafe {
         if !c.text.is_null() {
             b.FPDFText_ClosePage(c.text);
+        }
+        if !form.is_null() {
+            b.FORM_OnBeforeClosePage(c.page, form);
         }
         b.FPDF_ClosePage(c.page);
     }

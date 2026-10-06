@@ -11,6 +11,9 @@ description = "PDFium-backed tile renderer and text layer for Papyrine"
 # Used only as the dynamic loader plus raw FFI bindings; no image/chrono-facing API is used.
 pdfium-render = { version = "0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe"] }
 memmap2 = "0.9"
+papyrine-core = { path = "../papyrine-core" }
+papyrine-ipc = { path = "../papyrine-ipc" }
+papyrine-text = { path = "../papyrine-text" }
 
 [lints]
 workspace = true

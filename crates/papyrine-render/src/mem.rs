@@ -1,0 +1,209 @@
+//! Process memory accounting and relief for the renderer (ARCHITECTURE §1.2).
+//!
+//! * [`footprint`] is the number the large-document gate counts: macOS
+//!   `phys_footprint`, Linux anonymous resident pages, Windows private bytes.
+//! * [`relief`] asks the C allocator to hand free pages back to the OS
+//!   (`malloc_trim` on glibc). On macOS it is a no-op in practice: libmalloc
+//!   caches freed large blocks and only gives them back when the process
+//!   started with [`CHILD_ENV`] (see below).
+//!
+//! **macOS allocator cache.** Measured on macOS 27: with libmalloc defaults a
+//! freed 26 MB block stays dirty in the process for good and
+//! `malloc_zone_pressure_relief` returns 0, so PDFium's transient image-decode
+//! buffers pin about 200 MB. `MallocSpaceEfficient=1` read at process start
+//! makes libmalloc return them at `free`. The variable is read once, before
+//! `main`, so the host has to put it in the renderer child's environment
+//! ([`CHILD_ENV`], or [`reexec_with_child_env`] as the first call of the
+//! renderer role).
+
+/// Environment the renderer child must start with, as `(name, value)` pairs.
+/// Empty where the platform allocator already returns memory promptly.
+#[cfg(target_os = "macos")]
+pub const CHILD_ENV: &[(&str, &str)] = &[("MallocSpaceEfficient", "1")];
+#[cfg(not(target_os = "macos"))]
+pub const CHILD_ENV: &[(&str, &str)] = &[];
+
+/// True when every variable of [`CHILD_ENV`] is set in this process.
+pub fn child_env_active() -> bool {
+    CHILD_ENV
+        .iter()
+        .all(|(k, v)| std::env::var(k).is_ok_and(|x| x == *v))
+}
+
+/// If [`CHILD_ENV`] is missing, re-execute the current executable with it set
+/// (same arguments, same inherited descriptors). Returns `Ok(())` when nothing
+/// had to be done; on success after a re-exec it never returns.
+///
+/// Call it first thing in the renderer role, before the sandbox is applied
+/// (a sandbox that denies `exec` would make it fail; the error is returned and
+/// the renderer then runs with the allocator cache, over budget).
+#[cfg(unix)]
+pub fn reexec_with_child_env() -> std::io::Result<()> {
+    use std::os::unix::process::CommandExt;
+    if child_env_active() {
+        return Ok(());
+    }
+    let mut cmd = std::process::Command::new(std::env::current_exe()?);
+    cmd.args(std::env::args_os().skip(1));
+    for (k, v) in CHILD_ENV {
+        cmd.env(k, v);
+    }
+    Err(cmd.exec())
+}
+
+#[cfg(not(unix))]
+pub fn reexec_with_child_env() -> std::io::Result<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod os {
+    #[repr(C)]
+    struct TaskVmInfo {
+        virtual_size: u64,
+        region_count: i32,
+        page_size: i32,
+        resident_size: u64,
+        resident_size_peak: u64,
+        device: u64,
+        device_peak: u64,
+        internal: u64,
+        internal_peak: u64,
+        external: u64,
+        external_peak: u64,
+        reusable: u64,
+        reusable_peak: u64,
+        purgeable_volatile_pmap: u64,
+        purgeable_volatile_resident: u64,
+        purgeable_volatile_virtual: u64,
+        compressed: u64,
+        compressed_peak: u64,
+        compressed_lifetime: u64,
+        phys_footprint: u64,
+        _rest: [u64; 32],
+    }
+    unsafe extern "C" {
+        fn mach_task_self() -> u32;
+        fn task_info(task: u32, flavor: u32, info: *mut TaskVmInfo, count: *mut u32) -> i32;
+        fn malloc_zone_pressure_relief(zone: *mut core::ffi::c_void, goal: usize) -> usize;
+    }
+    const TASK_VM_INFO: u32 = 22;
+
+    pub fn footprint() -> u64 {
+        // SAFETY: plain Mach call into a zeroed, correctly sized out struct.
+        unsafe {
+            let mut i: TaskVmInfo = std::mem::zeroed();
+            let mut count = (std::mem::size_of::<TaskVmInfo>() / 4) as u32;
+            if task_info(mach_task_self(), TASK_VM_INFO, &mut i, &mut count) == 0 {
+                i.phys_footprint
+            } else {
+                0
+            }
+        }
+    }
+
+    pub fn relief() {
+        // SAFETY: a null zone means "all zones".
+        unsafe { malloc_zone_pressure_relief(std::ptr::null_mut(), 0) };
+    }
+}
+
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+mod os {
+    unsafe extern "C" {
+        fn malloc_trim(pad: usize) -> i32;
+    }
+
+    pub fn footprint() -> u64 {
+        // statm: size resident shared ... (pages). Anonymous = resident - shared.
+        let Ok(s) = std::fs::read_to_string("/proc/self/statm") else {
+            return 0;
+        };
+        let mut f = s.split_whitespace().skip(1).map(|v| v.parse::<u64>().ok());
+        let (Some(Some(res)), Some(Some(shared))) = (f.next(), f.next()) else {
+            return 0;
+        };
+        res.saturating_sub(shared) * 4096
+    }
+
+    pub fn relief() {
+        // SAFETY: glibc call with no preconditions.
+        unsafe { malloc_trim(0) };
+    }
+}
+
+#[cfg(all(target_os = "linux", not(target_env = "gnu")))]
+mod os {
+    pub fn footprint() -> u64 {
+        let Ok(s) = std::fs::read_to_string("/proc/self/statm") else {
+            return 0;
+        };
+        let mut f = s.split_whitespace().skip(1).map(|v| v.parse::<u64>().ok());
+        let (Some(Some(res)), Some(Some(shared))) = (f.next(), f.next()) else {
+            return 0;
+        };
+        res.saturating_sub(shared) * 4096
+    }
+
+    pub fn relief() {}
+}
+
+#[cfg(windows)]
+mod os {
+    #[repr(C)]
+    struct ProcessMemoryCountersEx {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: usize,
+        working_set_size: usize,
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
+        pagefile_usage: usize,
+        peak_pagefile_usage: usize,
+        private_usage: usize,
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentProcess() -> isize;
+        fn K32GetProcessMemoryInfo(
+            process: isize,
+            counters: *mut ProcessMemoryCountersEx,
+            cb: u32,
+        ) -> i32;
+    }
+
+    pub fn footprint() -> u64 {
+        // SAFETY: zeroed out struct of the size we pass; pseudo-handle needs no close.
+        unsafe {
+            let mut c: ProcessMemoryCountersEx = std::mem::zeroed();
+            c.cb = std::mem::size_of::<ProcessMemoryCountersEx>() as u32;
+            if K32GetProcessMemoryInfo(GetCurrentProcess(), &mut c, c.cb) != 0 {
+                c.private_usage as u64
+            } else {
+                0
+            }
+        }
+    }
+
+    pub fn relief() {}
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
+mod os {
+    pub fn footprint() -> u64 {
+        0
+    }
+    pub fn relief() {}
+}
+
+/// Current memory footprint of this process in bytes (0 if unavailable).
+pub fn footprint() -> u64 {
+    os::footprint()
+}
+
+/// Give free heap pages back to the OS where the allocator allows it.
+pub fn relief() {
+    os::relief()
+}

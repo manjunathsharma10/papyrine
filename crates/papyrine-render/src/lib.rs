@@ -7,13 +7,18 @@
 
 mod document;
 mod error;
+mod governor;
 mod library;
+pub mod mem;
+pub mod role;
+pub mod sched;
 mod source;
 pub mod testgen;
 pub mod tiles;
 
-pub use document::{CharBox, Document, PAGE_CACHE_CAP, PageText, Tile};
+pub use document::{CharBox, Document, Glyphs, PAGE_CACHE_CAP, PageText, Tile};
 pub use error::{Error, Result};
+pub use governor::{ColdLoad, Governor, MemoryConfig};
 pub use library::{Library, platform_dir_name};
 pub use source::{Bytes, MultiBuf, bytes_from_vec, open_mmap};
 pub use tiles::{TILE_SIZE, TileCoord};
