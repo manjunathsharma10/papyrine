@@ -411,9 +411,9 @@ impl Server {
                 let growth = self.growth();
                 match self.gov.before_cold_load(growth, loads) {
                     ColdLoad::Proceed => {}
-                    ColdLoad::TrimPages => self.trim_pages(Some(id), None),
+                    ColdLoad::TrimPages => self.trim_pages(self.active.filter(|(d, _)| *d == id)),
                     ColdLoad::Recycle => {
-                        self.trim_pages(None, None);
+                        self.trim_pages(None);
                         self.recycle(id, growth)?;
                     }
                 }
@@ -424,7 +424,7 @@ impl Server {
     }
 
     /// Close cached pages everywhere, keeping `keep` (doc, page) if given.
-    fn trim_pages(&mut self, _active: Option<DocId>, keep: Option<(DocId, usize)>) {
+    fn trim_pages(&mut self, keep: Option<(DocId, usize)>) {
         bump(&self.stats.trims);
         for (id, e) in self.docs.iter_mut() {
             if let Some(d) = e.doc.as_mut() {
@@ -460,7 +460,7 @@ impl Server {
         self.idle_stage = 0;
         let growth = self.growth();
         if self.gov.trim_after_job(growth) {
-            self.trim_pages(None, self.active);
+            self.trim_pages(self.active);
         }
     }
 
@@ -962,7 +962,7 @@ impl Server {
         let (idle_after, hib_after) = (self.cfg.memory.idle_after, self.cfg.memory.hibernate_after);
         if self.idle_stage == 0 && idle >= idle_after {
             self.idle_stage = 1;
-            self.trim_pages(None, None);
+            self.trim_pages(None);
             let growth = self.growth();
             if self.gov.idle_should_recycle(growth) {
                 let ids: Vec<DocId> = self.docs.keys().copied().collect();
