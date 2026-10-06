@@ -15,5 +15,9 @@ papyrine-core = { path = "../papyrine-core" }
 papyrine-ipc = { path = "../papyrine-ipc" }
 papyrine-text = { path = "../papyrine-text" }
 
+[dev-dependencies]
+# Perf tests find content-stream ids and the trailer of corpus files.
+papyrine-cos = { path = "../papyrine-cos" }
+
 [lints]
 workspace = true

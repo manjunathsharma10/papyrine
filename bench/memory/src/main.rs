@@ -5,13 +5,16 @@
 //!   memprobe pdfium-open <file>            page count oracle for Spike 0.3
 //!   memprobe cos       <file> [--path] [--all] [--settle S]   qpdf memory run (default: mmap input)
 //!   memprobe cos-lazy  <file> [--iters N]  lazy per-operation fallback: open, one op, drop
-//!   memprobe pdfium    <file> [--text] [--reopen-every N] [--settle S]   PDFium memory run
+//!   memprobe pdfium    <file> [--text] [--reopen-every N] [--page-cap N] [--limit PAGES] [--settle S]   PDFium memory run
+//!   memprobe gate      <file> --role-exe PATH [--settle S] [--tiles N] [--edits N]   full 1.2 script, real renderer child
 //!   memprobe baseline                      empty process (Rust + nothing loaded)
 //!
 //! Memory is macOS `phys_footprint` (what Activity Monitor and the section 1.1 gate use):
 //! a 10 Hz sampler keeps the maximum, and the kernel's own lifetime peak
 //! (`ledger_phys_footprint_peak`) is read at the end. Output is one `MEM {json}` line.
 //! File-backed clean pages of the input are not counted by `phys_footprint`.
+
+mod gate;
 
 use papyrine_cos::{Document, Error, OpenOptions};
 use papyrine_render as render;
@@ -371,11 +374,17 @@ fn run_pdfium(file: &str, args: &[String]) {
     let base = render::open_mmap(std::path::Path::new(file)).expect("mmap");
     let t0 = Instant::now();
     let mut doc = render::Document::open(&lib, base, &[], None).expect("open");
+    // Mitigation under test: close pages promptly (1) instead of keeping 8 parsed pages.
+    if let Some(cap) = arg_val(args, "--page-cap").and_then(|v| v.parse().ok()) {
+        doc.set_page_cache_cap(cap);
+    }
     let open_ms = t0.elapsed().as_millis();
     let after_open = mem::footprint();
-    let pages = doc
-        .page_count()
-        .min(arg_val(args, "--limit").and_then(|v| v.parse().ok()).unwrap_or(usize::MAX));
+    let pages = doc.page_count().min(
+        arg_val(args, "--limit")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(usize::MAX),
+    );
     let t1 = Instant::now();
     let (mut ok, mut failed) = (0usize, 0usize);
     let mut cancel = || false;
@@ -408,6 +417,8 @@ fn run_pdfium(file: &str, args: &[String]) {
     emit(&[
         ("engine", s("pdfium")),
         ("reopen_every", reopen_every.to_string()),
+        ("alloc_env", render::mem::child_env_active().to_string()),
+        ("page_cap", doc.page_cache_cap().to_string()),
         ("final_reopen_ms", reopen_ms.to_string()),
         ("after_final_reopen_mb", mb(after_reopen).to_string()),
         ("relief_released_mb", mb(released as u64).to_string()),
@@ -455,6 +466,7 @@ fn main_inner() {
         "cos" => run_cos(&file, &args),
         "cos-lazy" => run_cos_lazy(&file, &args),
         "pdfium" => run_pdfium(&file, &args),
+        "gate" => gate::run(&file, &args),
         "baseline" => emit(&[
             ("engine", s("baseline")),
             ("start_mb", mb(mem::footprint()).to_string()),

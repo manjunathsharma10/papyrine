@@ -326,17 +326,33 @@ impl Server {
             return;
         };
         let lib = self.lib();
+        let heavy_at = self.cfg.memory.hibernate_cost;
         let result: Result<u32, IpcError> = (|| {
             let e = self.docs.get_mut(&id).ok_or_else(|| unknown_doc(id))?;
+            let heavy = e.open_cost >= heavy_at;
             match e.doc.as_mut() {
-                Some(d) => d.reopen(&p.sections).map_err(map_err)?,
-                None => {
-                    // Hibernated: open fresh to learn the new page count.
+                Some(d) if !heavy => d.reopen(&p.sections).map_err(map_err)?,
+                _ => {
+                    // Hibernated, or a document whose parse state alone is large: close
+                    // it first so two copies never coexist (peak stays at one copy).
                     let lib = lib?;
-                    let d =
-                        Document::open(&lib, e.base.clone(), &p.sections, e.password.as_deref())
-                            .map_err(map_err)?;
-                    e.doc = Some(d);
+                    if e.doc.take().is_some() {
+                        mem::relief();
+                    }
+                    match Document::open(&lib, e.base.clone(), &p.sections, e.password.as_deref()) {
+                        Ok(d) => e.doc = Some(d),
+                        Err(err) => {
+                            // Put the previous snapshot back; the caller sees the error.
+                            e.doc = Document::open(
+                                &lib,
+                                e.base.clone(),
+                                &e.sections,
+                                e.password.as_deref(),
+                            )
+                            .ok();
+                            return Err(map_err(err));
+                        }
+                    }
                     bump(&self.stats.wakes);
                 }
             }

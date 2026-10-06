@@ -106,6 +106,28 @@ mod os {
         // SAFETY: a null zone means "all zones".
         unsafe { malloc_zone_pressure_relief(std::ptr::null_mut(), 0) };
     }
+
+    /// `rusage_info_v4`: a 16-byte uuid then 35 u64 fields; index 7 is
+    /// `ri_phys_footprint`, index 28 `ri_lifetime_max_phys_footprint`.
+    #[repr(C)]
+    struct RusageV4 {
+        uuid: [u8; 16],
+        f: [u64; 35],
+    }
+    unsafe extern "C" {
+        fn proc_pid_rusage(pid: i32, flavor: i32, buffer: *mut core::ffi::c_void) -> i32;
+    }
+
+    pub fn footprint_of(pid: u32) -> Option<(u64, u64)> {
+        // SAFETY: zeroed out struct at least as large as rusage_info_v4.
+        unsafe {
+            let mut r: RusageV4 = std::mem::zeroed();
+            if proc_pid_rusage(pid as i32, 4, &mut r as *mut _ as *mut _) != 0 {
+                return None;
+            }
+            Some((r.f[7], r.f[28]))
+        }
+    }
 }
 
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
@@ -130,6 +152,10 @@ mod os {
         // SAFETY: glibc call with no preconditions.
         unsafe { malloc_trim(0) };
     }
+
+    pub fn footprint_of(pid: u32) -> Option<(u64, u64)> {
+        super::linux_footprint_of(pid)
+    }
 }
 
 #[cfg(all(target_os = "linux", not(target_env = "gnu")))]
@@ -146,6 +172,10 @@ mod os {
     }
 
     pub fn relief() {}
+
+    pub fn footprint_of(pid: u32) -> Option<(u64, u64)> {
+        super::linux_footprint_of(pid)
+    }
 }
 
 #[cfg(windows)]
@@ -188,6 +218,10 @@ mod os {
     }
 
     pub fn relief() {}
+
+    pub fn footprint_of(_pid: u32) -> Option<(u64, u64)> {
+        None
+    }
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
@@ -196,11 +230,32 @@ mod os {
         0
     }
     pub fn relief() {}
+    pub fn footprint_of(_pid: u32) -> Option<(u64, u64)> {
+        None
+    }
+}
+
+/// Anonymous resident bytes of process `pid` from `/proc` (the peak is the
+/// current value: callers that need a peak sample).
+#[cfg(target_os = "linux")]
+fn linux_footprint_of(pid: u32) -> Option<(u64, u64)> {
+    let s = std::fs::read_to_string(format!("/proc/{pid}/statm")).ok()?;
+    let mut f = s.split_whitespace().skip(1).map(|v| v.parse::<u64>().ok());
+    let (res, shared) = (f.next()??, f.next()??);
+    let v = res.saturating_sub(shared) * 4096;
+    Some((v, v))
 }
 
 /// Current memory footprint of this process in bytes (0 if unavailable).
 pub fn footprint() -> u64 {
     os::footprint()
+}
+
+/// Footprint of another process owned by the same user, as
+/// `(current, lifetime peak)` bytes. The peak is exact on macOS and equals the
+/// current value on Linux (sample it); `None` where unsupported (Windows).
+pub fn footprint_of(pid: u32) -> Option<(u64, u64)> {
+    os::footprint_of(pid)
 }
 
 /// Give free heap pages back to the OS where the allocator allows it.

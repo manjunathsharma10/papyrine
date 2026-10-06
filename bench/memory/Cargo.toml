@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 papyrine-cos = { path = "../../crates/papyrine-cos" }
 papyrine-render = { path = "../../crates/papyrine-render" }
+papyrine-ipc = { path = "../../crates/papyrine-ipc" }
 memmap2 = "0.9"
 
 [profile.release]

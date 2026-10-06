@@ -7,6 +7,7 @@
 
 mod document;
 mod error;
+pub mod golden;
 mod governor;
 mod library;
 pub mod mem;

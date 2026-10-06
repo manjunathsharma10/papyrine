@@ -2,6 +2,12 @@
 """Run the large-document memory matrix (ARCHITECTURE 1.2 / Spike 0.2) one process at a time.
 
   run.py --memprobe PATH [--settle 10] [--out results.jsonl]
+  run.py --memprobe PATH --role-exe PATH_TO_render_role --large-json large.json [--gate-only]
+
+With --role-exe each file also runs the full ARCHITECTURE 1.2 script against the real renderer
+role in a sandboxed child process (`memprobe gate`) and writes the rows `tools/check-budgets
+--large-doc` reads. Build the role with
+`cargo build --release -p papyrine-render --example render_role`.
 
 Each memprobe run is a fresh process, so peaks are per-process and cannot leak between runs.
 Prints a markdown table; the raw MEM lines go to --out.
@@ -17,6 +23,10 @@ ap.add_argument("--memprobe", required=True)
 ap.add_argument("--settle", default="10")
 ap.add_argument("--out", default="memory-results.jsonl")
 ap.add_argument("--files", nargs="*", default=FILES)
+ap.add_argument("--role-exe", help="render_role example binary: also run the full 1.2 script")
+ap.add_argument("--large-json", default="large.json")
+ap.add_argument("--gate-only", action="store_true", help="skip the per-engine matrix")
+ap.add_argument("--gate-args", nargs="*", default=[], help="extra args for memprobe gate")
 a = ap.parse_args()
 
 results = []
@@ -37,6 +47,41 @@ def run(label, args):
     print(label, line[4:200], file=sys.stderr)
     return r
 
+
+def gate(name):
+    f = os.path.join(GEN, name + ".pdf")
+    p = subprocess.run([a.memprobe, "gate", f, "--role-exe", a.role_exe, "--settle", a.settle] + a.gate_args,
+                       capture_output=True, text=True)
+    line = next((l for l in p.stdout.splitlines() if l.startswith("GATE ")), None)
+    if not line:
+        print(f"gate {name}: FAILED rc={p.returncode} {p.stderr[-400:]}", file=sys.stderr)
+        return None
+    r = json.loads(line[5:])
+    with open(a.out, "a") as fh:
+        fh.write(json.dumps({"label": f"gate {name}", **r}) + "\n")
+    print("gate", name, line[5:240], file=sys.stderr)
+    return r
+
+
+if a.role_exe:
+    rows, out = [], []
+    for name in a.files:
+        r = gate(name)
+        if r:
+            out.append(r)
+            rows.append({"file": name + ".pdf", "peak_mb": r["peak_mb"], "settled_mb": r["settled_mb"],
+                         "engine_mb": r["engine_settled_mb"], "renderer_mb": r["renderer_settled_mb"]})
+    with open(a.large_json, "w") as fh:
+        json.dump(rows, fh, indent=1)
+    print("\n| file | renderer peak | renderer settled | engine peak | engine settled | whole-app peak* | whole-app settled* | first tile ms | search s | edit p95 ms |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    for r in out:
+        print(f"| {r['file']} | {r['renderer_peak_mb']} | {r['renderer_settled_mb']} | {r['engine_peak_mb']} | "
+              f"{r['engine_settled_mb']} | {r['peak_mb']} | {r['settled_mb']} | {r['first_tile_ms']} | "
+              f"{r['search_s']} | {r['edit_tile_ms_p95']} |")
+    print("\n* adds the shell/webview constant (Spike 0.1) and the host tile-cache estimate; not measured here.")
+    if a.gate_only:
+        sys.exit(0)
 
 run("baseline", ["baseline"])
 for name in a.files:
