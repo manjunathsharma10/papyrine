@@ -59,6 +59,8 @@ impl CommandRegistry {
         r.register(SetPageBox::NAME, |_, p| {
             from_json::<SetPageBox>(SetPageBox::NAME, p)
         });
+        // Needs the host's blob store; hosts call `InsertPagesFromPdf::register` with theirs.
+        InsertPagesFromPdf::register(&mut r, std::sync::Arc::new(MemoryBlobs::new()));
         r.register(CompositeCommand::NAME, CompositeCommand::from_params);
         r
     }

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::normalize_pages;
+use super::selection::PageSelection;
 use crate::changeset::ChangeSet;
 use crate::command::Command;
 use crate::context::EditContext;
@@ -21,6 +22,12 @@ impl RotatePages {
 
     pub fn new(pages: Vec<usize>, delta: i32) -> Self {
         RotatePages { pages, delta }
+    }
+
+    /// Rotate the pages a [`PageSelection`] (a range, odd or even pages, ...) picks in a
+    /// document of `page_count` pages.
+    pub fn selected(sel: &PageSelection, page_count: usize, delta: i32) -> Result<Self> {
+        Ok(Self::new(sel.resolve(page_count)?, delta))
     }
 }
 

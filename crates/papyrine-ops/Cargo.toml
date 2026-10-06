@@ -9,11 +9,13 @@ description = "Undoable edit commands over papyrine-cos: EditContext, ChangeSet,
 
 [dependencies]
 papyrine-cos = { path = "../papyrine-cos" }
+blake3 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 
 [dev-dependencies]
+papyrine-render = { path = "../papyrine-render" }
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
 

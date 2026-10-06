@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::normalize_pages;
+use std::collections::HashSet;
+
+use super::{labels, normalize_pages, scrub};
 use crate::changeset::ChangeSet;
 use crate::command::Command;
 use crate::context::EditContext;
@@ -10,6 +12,10 @@ use crate::text::LocalizedText;
 
 /// Remove pages from the page tree. The page objects stay in memory (so undo is exact) and are
 /// dropped from the file on write as unreferenced. A document must keep at least one page.
+///
+/// Bookmarks, links, named destinations, form widgets and the open action that pointed at a
+/// deleted page are removed or made inert (otherwise the page would stay in the file), and
+/// page-label ranges after the deleted pages move up.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeletePages {
     pub pages: Vec<usize>,
@@ -46,10 +52,14 @@ impl Command for DeletePages {
             .iter()
             .map(|&i| doc.page(i))
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        let removed: HashSet<_> = handles.iter().filter_map(|h| h.id()).collect();
+        let old_count = doc.page_count()?;
         cx.touch_page_tree()?;
         for h in &handles {
             doc.remove_page(h)?;
         }
+        labels::shift_for_delete(cx, &pages, old_count)?;
+        scrub::scrub_deleted_pages(cx, &removed)?;
         cx.note_structure();
         cx.changeset()
     }

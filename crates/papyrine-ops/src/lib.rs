@@ -30,8 +30,10 @@ pub mod verify;
 pub use changeset::{ChangeSet, ChangeSummary, RepaintHint};
 pub use command::{Command, CompositeCommand};
 pub use commands::{
-    BoxKind, DeletePages, DuplicatePages, InfoField, InsertBlankPage, MovePages, RotatePages,
-    SetInfoField, SetPageBox,
+    BlobSource, BoxKind, DeletePages, DuplicatePages, FieldReport, ImportOptions, Imported,
+    InfoField, InsertBlankPage, InsertPagesFromPdf, MemoryBlobs, MovePages, OutlineMode,
+    PageSelection, PageSize, Parity, RotatePages, ScrubReport, SetInfoField, SetPageBox, blob_id,
+    import_pages, parse_split_ranges,
 };
 pub use context::EditContext;
 pub use error::{Error, Mismatch, Result};

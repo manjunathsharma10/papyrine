@@ -1,18 +1,32 @@
 //! Built-in commands, one per file.
 
 mod delete_pages;
+pub(crate) mod dests;
 mod duplicate_pages;
+pub(crate) mod forms;
+pub mod import;
 mod insert_blank_page;
+mod insert_pages;
+mod labels;
 mod move_pages;
+pub mod outlines;
 mod rotate_pages;
+mod scrub;
+pub mod selection;
 mod set_info_field;
 mod set_page_box;
 
 pub use delete_pages::DeletePages;
 pub use duplicate_pages::DuplicatePages;
-pub use insert_blank_page::InsertBlankPage;
+pub use forms::FieldReport;
+pub use import::{ImportOptions, Imported, import_pages};
+pub use insert_blank_page::{InsertBlankPage, PageSize};
+pub use insert_pages::{BlobSource, InsertPagesFromPdf, MemoryBlobs, blob_id};
 pub use move_pages::MovePages;
+pub use outlines::OutlineMode;
 pub use rotate_pages::RotatePages;
+pub use scrub::ScrubReport;
+pub use selection::{PageSelection, Parity, parse_split_ranges};
 pub use set_info_field::{InfoField, SetInfoField};
 pub use set_page_box::{BoxKind, SetPageBox};
 
