@@ -1,0 +1,87 @@
+# Bundled fonts of papyrine-annotate (text-box fallback and default faces).
+# All are Noto fonts under the SIL Open Font License 1.1 (see OFL.txt, copied from the
+# upstream release archive). gen-notices must list every entry below and ship OFL.txt.
+#
+# Each file is a SUBSET of the unhinted upstream TTF, made with fonttools 4.66.1:
+#   pyftsubset <upstream>.ttf --output-file=<name>.ttf --no-hinting --desubroutinize \
+#     --notdef-outline --name-IDs='*' \
+#     --layout-features='kern,liga,ccmp,locl,mark,mkmk,calt,rlig,clig' \
+#     --unicodes='U+0020-007E,U+00A0-024F,U+0300-036F,U+0370-03FF,U+0400-052F,U+1E00-1EFF,
+#                 U+2000-206F,U+20A0-20BF,U+2100-2122,U+2190-2193,U+2212,U+2022,U+25CF,
+#                 U+2713,U+2717'
+# Coverage: Basic Latin, Latin-1, Latin Extended-A/B, IPA-adjacent combining marks, Greek,
+# Cyrillic, Latin Extended Additional (Vietnamese), general punctuation, currency, a few symbols.
+# OS/2 fsType of the upstream fonts is 0 (installable embedding); subsets are embedded in PDFs.
+
+[meta]
+license = "OFL-1.1"
+license_file = "OFL.txt"
+license_sha256 = "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a"
+copyright = "Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)"
+total_bytes = 936000
+
+[[font]]
+file = "NotoSans-Regular.ttf"
+family = "Noto Sans"
+style = "Regular"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSans-v2.015/NotoSans-v2.015.zip"
+source_archive_sha256 = "0c34df072a3fa7efbb7cbf34950e1f971a4447cffe365d3a359e2d4089b958f5"
+source_path = "NotoSans/unhinted/ttf/NotoSans-Regular.ttf"
+source_sha256 = "f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8"
+sha256 = "c3f41643e9cc87bff4c96277f6a4a90baee55cf7fae33c5907c0e30c5a190b9b"
+
+[[font]]
+file = "NotoSans-Bold.ttf"
+family = "Noto Sans"
+style = "Bold"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSans-v2.015/NotoSans-v2.015.zip"
+source_archive_sha256 = "0c34df072a3fa7efbb7cbf34950e1f971a4447cffe365d3a359e2d4089b958f5"
+source_path = "NotoSans/unhinted/ttf/NotoSans-Bold.ttf"
+source_sha256 = "87cb2d84472a7d66da659ee47b6cdb9552326e8c128245231f191b6ac72529d9"
+sha256 = "a99ba73d3e5f9af4978770a380930077e13e33ea517fd75c2870b3971ecb148a"
+
+[[font]]
+file = "NotoSerif-Regular.ttf"
+family = "Noto Serif"
+style = "Regular"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSerif-v2.015/NotoSerif-v2.015.zip"
+source_archive_sha256 = "0e9a43c8a4b94ac76f55069ed1d7385bbcaf6b99527a94deb5619e032b7e76c1"
+source_path = "NotoSerif/unhinted/ttf/NotoSerif-Regular.ttf"
+source_sha256 = "a15cfbbc1539d707115111d672d590a3d70d4f74b4c0a315956da20ae19a14e1"
+sha256 = "abacd4a094a5bbdfd82392d7fccba672ffbae145950875d73c6e4970cae688a8"
+
+[[font]]
+file = "NotoSerif-Bold.ttf"
+family = "Noto Serif"
+style = "Bold"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSerif-v2.015/NotoSerif-v2.015.zip"
+source_archive_sha256 = "0e9a43c8a4b94ac76f55069ed1d7385bbcaf6b99527a94deb5619e032b7e76c1"
+source_path = "NotoSerif/unhinted/ttf/NotoSerif-Bold.ttf"
+source_sha256 = "24ad531e6b05ddad8c3d89572d2c93eb86a6b74e652ce7ee3c3e171de68e84c3"
+sha256 = "ce5c2fa01f48946e2966280ea811b0a2cd9783ad3395bb136dcd557821c62612"
+
+[[font]]
+file = "NotoSansMono-Regular.ttf"
+family = "Noto Sans Mono"
+style = "Regular"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSansMono-v2.014/NotoSansMono-v2.014.zip"
+source_archive_sha256 = "090cf6c5e03f337a755630ca888b1fef463e64ae7b33ee134e9309c05f978732"
+source_path = "NotoSansMono/unhinted/ttf/NotoSansMono-Regular.ttf"
+source_sha256 = "87f8ce0522a6c99b743ee5fc75b4073cfdd575639119672828b7b9944b65b4f4"
+sha256 = "216a3da45b6e611117d6569b1f42ea6714cb85dd1a66bebb7104f89ea614038e"
+
+[[font]]
+file = "NotoSansMono-Bold.ttf"
+family = "Noto Sans Mono"
+style = "Bold"
+license = "OFL-1.1"
+source_url = "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSansMono-v2.014/NotoSansMono-v2.014.zip"
+source_archive_sha256 = "090cf6c5e03f337a755630ca888b1fef463e64ae7b33ee134e9309c05f978732"
+source_path = "NotoSansMono/unhinted/ttf/NotoSansMono-Bold.ttf"
+source_sha256 = "1100772b2f79c102402a1011df5e2226517d0f40ac553a25fb12fdbad8c11b85"
+sha256 = "bac1218d4066f8295e7d9c02cb8e4ab6766cf28920c66683de96d84dbc77269b"
