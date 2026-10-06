@@ -2675,6 +2675,9 @@ name = "papyrine-render"
 version = "0.0.1"
 dependencies = [
  "memmap2",
+ "papyrine-core",
+ "papyrine-ipc",
+ "papyrine-text",
  "pdfium-render",
 ]
 
