@@ -14,7 +14,9 @@
 //! ```
 
 use ed25519_dalek::SigningKey;
-use papyrine_update::envelope::{DOMAIN_KEYRING, DOMAIN_UPDATES, Envelope, decode_public_key, signing};
+use papyrine_update::envelope::{
+    DOMAIN_KEYRING, DOMAIN_UPDATES, Envelope, decode_public_key, signing,
+};
 use papyrine_update::keyring::Keyring;
 use papyrine_update::roots::{self, Root};
 use papyrine_update::updates::Updates;
