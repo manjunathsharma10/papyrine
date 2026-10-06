@@ -85,3 +85,37 @@ source_archive_sha256 = "090cf6c5e03f337a755630ca888b1fef463e64ae7b33ee134e9309c
 source_path = "NotoSansMono/unhinted/ttf/NotoSansMono-Bold.ttf"
 source_sha256 = "1100772b2f79c102402a1011df5e2226517d0f40ac553a25fb12fdbad8c11b85"
 sha256 = "bac1218d4066f8295e7d9c02cb8e4ab6766cf28920c66683de96d84dbc77269b"
+
+# ---- Test-only fonts (tests/fonts, never shipped; gen-notices need not list them) -------------
+# Tiny subsets of Noto fonts (OFL-1.1) used to test fallback, CFF embedding, RTL and the
+# fsType rule without depending on the machine's fonts. PapyrineRestricted-Test.ttf is a
+# subset of Noto Sans Arabic whose OS/2 fsType was set to 2 (restricted license) and whose
+# family name was changed, to exercise the "never embed" path.
+
+[[test_font]]
+file = "tests/fonts/NotoSansHebrew-Test.ttf"
+source_url = "https://github.com/notofonts/notofonts.github.io/raw/main/fonts/NotoSansHebrew/hinted/ttf/NotoSansHebrew-Regular.ttf"
+source_sha256 = "cdefaf8efd47045f6820928eba84db5bed7557539328952b5f828315485e02ee"
+sha256 = "d73025048d399c5c72ae9c8ed66ecb56f76a2613f805922954b3fa3863a77179"
+subset = "U+0590-05FF,U+0020"
+
+[[test_font]]
+file = "tests/fonts/NotoSansArabic-Test.ttf"
+source_url = "https://github.com/notofonts/notofonts.github.io/raw/main/fonts/NotoSansArabic/hinted/ttf/NotoSansArabic-Regular.ttf"
+source_sha256 = "bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48"
+sha256 = "5953aa4688e68cb7afb65cc521047a0f287b6b2daecf3883367c3cbfba5bde0a"
+subset = "U+0627,U+0644,U+0633,U+0645,U+0020"
+
+[[test_font]]
+file = "tests/fonts/PapyrineRestricted-Test.ttf"
+source_url = "https://github.com/notofonts/notofonts.github.io/raw/main/fonts/NotoSansArabic/hinted/ttf/NotoSansArabic-Regular.ttf"
+source_sha256 = "bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48"
+sha256 = "080ad0e71b6cf5b766dd1e57775a43644ede75d3d585892f1e72d363b651be57"
+subset = "U+0628,U+062A,U+062B; fsType set to 2, family renamed"
+
+[[test_font]]
+file = "tests/fonts/NotoSansJP-Test.otf"
+source_url = "https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/JP/NotoSansJP-Regular.otf"
+source_sha256 = "dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073"
+sha256 = "00a248f97bf93533c0880eb9d1406daa81b012d827eb2833f663dd2513a1bed8"
+subset = "text=日本語漢字ひらがなカタカナ。、 (CFF outlines)"

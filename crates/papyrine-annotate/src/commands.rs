@@ -26,6 +26,9 @@ pub enum AnnotRef {
     Id { num: u32, generation: u16 },
     /// The unique `/NM` name.
     Name(String),
+    /// Position in the page's `/Annots` array (the only way to name a direct annotation
+    /// dictionary that has no `/NM`; positions shift when annotations are deleted).
+    Index(usize),
 }
 
 impl AnnotRef {

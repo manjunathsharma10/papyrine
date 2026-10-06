@@ -84,13 +84,22 @@ pub fn bundled(family: FontFamily, bold: bool) -> FontFace {
     }
 }
 
-/// Whether the font's OS/2 embedding permissions allow embedding a *subset* in a PDF.
-/// A font without an OS/2 table states no restriction.
+/// Whether the font's OS/2 `fsType` allows embedding a *subset* in a PDF that stays editable.
+///
+/// Allowed: installable (0) and editable (8) embedding. Refused: restricted license (2),
+/// preview-and-print only (4, the file would have to stay read-only), "no subsetting" (0x100)
+/// and "bitmap embedding only" (0x200). A font without an OS/2 table states no restriction.
 pub fn embedding_allowed(face: &rustybuzz::ttf_parser::Face<'_>) -> bool {
-    match face.tables().os2 {
-        None => true,
-        Some(os2) => os2.is_outline_embedding_allowed() && os2.is_subsetting_allowed(),
-    }
+    let Some(os2) = face
+        .raw_face()
+        .table(rustybuzz::ttf_parser::Tag::from_bytes(b"OS/2"))
+    else {
+        return true;
+    };
+    let Some(fs) = os2.get(8..10).map(|b| u16::from_be_bytes([b[0], b[1]])) else {
+        return true;
+    };
+    matches!(fs & 0x000F, 0 | 8) && fs & 0x0300 == 0
 }
 
 /// What the text layout did about fonts; shown to the user when it matters.
@@ -181,6 +190,21 @@ fn lock() -> std::sync::MutexGuard<'static, Sys> {
 pub fn set_system_fonts_enabled(on: bool) {
     let mut s = lock();
     s.enabled = on;
+    s.decided.clear();
+}
+
+/// Replace the fallback database with exactly `fonts` (no system scan). For tests and for
+/// hosts that must not read the user's font folders.
+pub fn use_only_fonts(fonts: Vec<Vec<u8>>) {
+    let mut s = lock();
+    let mut db = fontdb::Database::new();
+    for f in fonts {
+        db.load_font_data(f);
+    }
+    s.db = Some(db);
+    s.extra_data.clear();
+    s.extra_dirs.clear();
+    s.loaded.clear();
     s.decided.clear();
 }
 
@@ -365,6 +389,9 @@ impl FontSet {
     fn choose(&mut self, c: char) -> usize {
         for (i, f) in self.faces.iter().enumerate() {
             if f.covers(c) {
+                if i > 0 {
+                    self.report.note_fallback(&f.name, c);
+                }
                 return i;
             }
         }
@@ -413,6 +440,33 @@ mod tests {
                 let face = f.ttf().unwrap();
                 assert!(embedding_allowed(&face), "{} fsType", f.name);
             }
+        }
+    }
+
+    #[test]
+    fn fs_type_rules() {
+        // Patch fsType (offset 8 of the OS/2 table) in a copy of a bundled font.
+        let base = bundled(FontFamily::Sans, false);
+        let data = base.bytes().to_vec();
+        let face = rustybuzz::ttf_parser::Face::parse(&data, 0).unwrap();
+        let rec = face
+            .raw_face()
+            .table(rustybuzz::ttf_parser::Tag::from_bytes(b"OS/2"))
+            .unwrap();
+        let off = rec.as_ptr() as usize - data.as_ptr() as usize + 8;
+        for (fs, ok) in [
+            (0u16, true),
+            (8, true),
+            (2, false),
+            (4, false),
+            (0x100, false),
+            (0x200, false),
+            (8 | 0x100, false),
+        ] {
+            let mut d = data.clone();
+            d[off..off + 2].copy_from_slice(&fs.to_be_bytes());
+            let f = rustybuzz::ttf_parser::Face::parse(&d, 0).unwrap();
+            assert_eq!(embedding_allowed(&f), ok, "fsType {fs:#x}");
         }
     }
 

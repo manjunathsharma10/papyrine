@@ -508,6 +508,7 @@ pub fn find_in_page(page: &Object, target: &crate::commands::AnnotRef) -> Result
                 a.id() == Some(ObjId::new(*num, *generation))
             }
             crate::commands::AnnotRef::Name(n) => get_text(&a, "NM").as_deref() == Some(n.as_str()),
+            crate::commands::AnnotRef::Index(n) => i == *n,
         };
         if hit {
             return Ok((i, a));

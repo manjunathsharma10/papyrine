@@ -161,8 +161,9 @@ pub fn new_flate_stream(doc: &Document, data: &[u8], extra: &[(&str, Object)]) -
     let s = doc.new_stream(b"")?;
     let z = deflate(data);
     s.stream_replace(&z, Some(&doc.new_name("FlateDecode")?), None)?;
+    let d = s.stream_dict()?;
     for (k, v) in extra {
-        s.dict_set(k, v)?;
+        d.dict_set(k, v)?;
     }
     Ok(s)
 }

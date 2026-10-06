@@ -1,0 +1,10 @@
+{
+  "name": "papyrine-annotate-oracle",
+  "private": true,
+  "description": "Test-only pdf.js oracle for papyrine-annotate (never shipped).",
+  "type": "module",
+  "dependencies": {
+    "pdfjs-dist": "6.4.299",
+    "@napi-rs/canvas": "1.0.10"
+  }
+}
