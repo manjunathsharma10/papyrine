@@ -10,7 +10,7 @@ description = "Bundle inspection gate: files, linked libraries and symbol prefix
 goblin = "0.10"
 license-gate = { path = "../license-gate" }
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+toml = "1.1"
 
 [lints]
 workspace = true
