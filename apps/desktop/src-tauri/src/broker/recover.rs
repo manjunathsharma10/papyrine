@@ -7,7 +7,7 @@ use super::Broker;
 use super::edit::label_for;
 use super::open::OpenSpec;
 use crate::api::{DocumentInfo, HostEvent};
-use crate::error::{Code, HostErr, Result};
+use crate::error::{HostErr, Result};
 use crate::recovery::{MODE_COPY, MODE_REFUSED, MODE_RESTORE, Offer, UnfinishedInfo};
 use crate::session::{JournalHandle, Session, Unfinished};
 use crate::util::{FileStat, file_name, now_ms};
@@ -64,7 +64,7 @@ impl Broker {
         *self.inner.offers.lock().unwrap_or_else(|p| p.into_inner()) = offers.clone();
         if !offers.is_empty() {
             self.emit(HostEvent::RecoveryAvailable {
-                offers: offers.clone(),
+                entries: self.recovery_entries(),
             });
         }
         offers
@@ -223,6 +223,7 @@ impl Broker {
                 command: u.command.clone(),
                 label: label_for(&u.command, &u.params),
                 prior_crashes: u.prior_crashes,
+                blobs: u.blobs.clone(),
             });
             st.unfinished_params = Some(u.params.clone());
         }
@@ -345,65 +346,6 @@ impl Broker {
         let mut st = s.st();
         st.stat = st.path.as_deref().and_then(FileStat::of);
         st.external_flagged = false;
-        Ok(())
-    }
-
-    // ------------------------------------------------------------------ actions
-
-    /// A document asked for a URI or Launch action. The host never performs it silently:
-    /// it tells the UI to show the target and ask.
-    pub fn request_action(&self, doc_id: &str, kind: &str, target: &str) -> Result<()> {
-        self.session(doc_id)?;
-        let kind = match kind {
-            "uri" | "launch" => kind,
-            other => {
-                return Err(HostErr::internal(format!(
-                    "unsupported action kind {other:?}"
-                )));
-            }
-        };
-        let target: String = target
-            .chars()
-            .filter(|c| !c.is_control())
-            .take(2048)
-            .collect();
-        self.emit(HostEvent::ActionPrompt {
-            doc_id: doc_id.to_string(),
-            kind: kind.to_string(),
-            target,
-        });
-        Ok(())
-    }
-
-    /// Open a URI after the user confirmed. Only http(s) and mailto, and never a file or
-    /// program: a Launch action is shown but never run.
-    pub fn open_uri(&self, target: &str) -> Result<()> {
-        let lower = target.to_ascii_lowercase();
-        if !(lower.starts_with("http://")
-            || lower.starts_with("https://")
-            || lower.starts_with("mailto:"))
-        {
-            return Err(HostErr::new(
-                Code::Io,
-                "Only web and mail links can be opened.",
-            ));
-        }
-        if target.chars().any(|c| c.is_control() || c == ' ') {
-            return Err(HostErr::new(Code::Io, "That link is not valid."));
-        }
-        #[cfg(target_os = "macos")]
-        let mut cmd = std::process::Command::new("open");
-        #[cfg(target_os = "windows")]
-        let mut cmd = {
-            // `rundll32 url.dll,FileProtocolHandler` takes the URL as one argument, with no shell.
-            let mut c = std::process::Command::new("rundll32");
-            c.arg("url.dll,FileProtocolHandler");
-            c
-        };
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let mut cmd = std::process::Command::new("xdg-open");
-        cmd.arg(target);
-        cmd.spawn()?;
         Ok(())
     }
 }

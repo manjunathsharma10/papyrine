@@ -6,6 +6,7 @@
 
 mod edit;
 mod engine;
+mod extras;
 mod open;
 mod recover;
 mod render;
@@ -38,6 +39,8 @@ pub use recover::Restored;
 pub trait Dialogs: Send + Sync + 'static {
     fn open(&self) -> Vec<PathBuf>;
     fn save(&self, suggested_name: &str) -> Option<PathBuf>;
+    /// Pick a folder (split output).
+    fn folder(&self) -> Option<PathBuf>;
 }
 
 /// Dialogs that never return a file (headless defaults).
@@ -47,6 +50,9 @@ impl Dialogs for NoDialogs {
         Vec::new()
     }
     fn save(&self, _suggested_name: &str) -> Option<PathBuf> {
+        None
+    }
+    fn folder(&self) -> Option<PathBuf> {
         None
     }
 }
@@ -117,6 +123,9 @@ pub struct Inner {
     pub(crate) watch: OnceLock<Option<Watch>>,
     pub(crate) offers: Mutex<Vec<Offer>>,
     pub(crate) temp_ids: AtomicU64,
+    pub(crate) pending_opens: Mutex<Option<Vec<PathBuf>>>,
+    pub(crate) prompts: Mutex<HashMap<String, extras::Prompt>>,
+    pub(crate) prefs: crate::prefs::Prefs,
     pub(crate) shutting_down: std::sync::atomic::AtomicBool,
 }
 
@@ -131,6 +140,7 @@ impl Broker {
         let fs: Arc<dyn Fs> = Arc::new(RealFs);
         let recovery = RecoveryRoot::new(fs.clone(), cfg.data_dir.join("recovery"));
         let recent = Recent::load(cfg.data_dir.join("recent.json"));
+        let prefs = crate::prefs::Prefs::load(cfg.data_dir.join("prefs.json"));
         let engine = Supervised::new(Role::Engine, cfg.launcher.clone());
         let renderer = Supervised::new(Role::Renderer, cfg.launcher.clone());
         let workers = cfg.render_workers;
@@ -167,6 +177,9 @@ impl Broker {
                 watch: OnceLock::new(),
                 offers: Mutex::new(Vec::new()),
                 temp_ids: AtomicU64::new(1),
+                pending_opens: Mutex::new(Some(Vec::new())),
+                prompts: Mutex::new(HashMap::new()),
+                prefs,
                 shutting_down: std::sync::atomic::AtomicBool::new(false),
             }
         });

@@ -18,24 +18,78 @@ use crate::util::dup_region;
 
 const SECTION_INIT: usize = 1 << 20;
 
-/// Registry name, params, user-facing label.
-pub(crate) fn map_command(cmd: &EngineCommand) -> Result<(String, Value, String)> {
+/// An external input of a command (an inserted PDF), journaled by content hash.
+pub(crate) type Blob = Arc<Vec<u8>>;
+
+/// A mapped UI command: registry name, params, label and external inputs.
+pub(crate) struct Mapped {
+    pub name: String,
+    pub params: Value,
+    pub label: String,
+    pub blobs: Vec<Blob>,
+}
+
+pub(crate) fn map_command(cmd: &EngineCommand) -> Result<Mapped> {
+    let (name, params, label, blobs) = map_inner(cmd)?;
+    Ok(Mapped {
+        name,
+        params,
+        label,
+        blobs,
+    })
+}
+
+fn map_inner(cmd: &EngineCommand) -> Result<(String, Value, String, Vec<Blob>)> {
+    let simple = |n: &str, p: Value, l: &str| (n.to_string(), p, l.to_string(), Vec::new());
     Ok(match cmd {
-        EngineCommand::RotatePages { pages, degrees } => (
-            "rotate_pages".into(),
+        EngineCommand::RotatePages { pages, degrees } => simple(
+            "rotate_pages",
             json!({"pages": pages, "delta": degrees}),
-            "Rotate pages".into(),
+            "Rotate pages",
         ),
-        EngineCommand::DeletePages { pages } => (
-            "delete_pages".into(),
-            json!({"pages": pages}),
-            "Delete pages".into(),
-        ),
-        EngineCommand::MovePages { pages, to } => (
-            "move_pages".into(),
+        EngineCommand::DeletePages { pages } => {
+            simple("delete_pages", json!({"pages": pages}), "Delete pages")
+        }
+        EngineCommand::MovePages { pages, to } => simple(
+            "move_pages",
             json!({"pages": pages, "to": to}),
-            "Move pages".into(),
+            "Move pages",
         ),
+        EngineCommand::DuplicatePages { pages } => simple(
+            "duplicate_pages",
+            json!({"pages": pages}),
+            "Duplicate pages",
+        ),
+        EngineCommand::InsertBlankPage { at, width, height } => simple(
+            "insert_blank_page",
+            // Size defaults to the neighbouring page (`like`), as the UI contract says.
+            match (width, height) {
+                (Some(w), Some(h)) => json!({"at": at, "width": w, "height": h}),
+                _ => {
+                    json!({"at": at, "width": 612.0, "height": 792.0, "like": at.saturating_sub(1)})
+                }
+            },
+            "Insert blank page",
+        ),
+        EngineCommand::InsertPages {
+            source_path,
+            pages,
+            at,
+        } => {
+            let bytes = std::fs::read(source_path)
+                .map_err(|e| HostErr::io(format!("Cannot read {source_path}: {e}")))?;
+            (
+                "insert_pages".into(),
+                json!({"blob": {"$blob": 0}, "at": at, "pages": pages}),
+                "Insert pages".into(),
+                vec![Arc::new(bytes)],
+            )
+        }
+        EngineCommand::Other => {
+            return Err(HostErr::internal(
+                "That kind of edit is not available in this build yet.",
+            ));
+        }
         EngineCommand::SetMetadata { fields } => {
             let mut cmds = Vec::new();
             for (field, v) in [
@@ -54,10 +108,10 @@ pub(crate) fn map_command(cmd: &EngineCommand) -> Result<(String, Value, String)
             if cmds.is_empty() {
                 return Err(HostErr::internal("no document properties to change"));
             }
-            (
-                "composite".into(),
+            simple(
+                "composite",
                 json!({"label": "Edit document properties", "commands": cmds}),
-                "Edit document properties".into(),
+                "Edit document properties",
             )
         }
     })
@@ -108,9 +162,27 @@ pub(crate) fn to_journal_images(images: &[papyrine_ipc::AfterImage]) -> Vec<JAft
         .collect()
 }
 
-#[derive(Clone, Debug, PartialEq)]
+/// A blob for the engine: inline when small, shared memory otherwise.
+fn ipc_blob(b: &Blob) -> Result<papyrine_ipc::BlobRef> {
+    if b.len() <= (1 << 20) {
+        return Ok(papyrine_ipc::BlobRef::Inline(b.to_vec()));
+    }
+    let region = SharedRegion::create(b.len())?;
+    region.write_at(0, b);
+    Ok(papyrine_ipc::BlobRef::Shared {
+        region,
+        offset: 0,
+        len: b.len() as u64,
+    })
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum Op {
-    Exec { name: String, params: Value },
+    Exec {
+        name: String,
+        params: Value,
+        blobs: Vec<Blob>,
+    },
     Undo,
     Redo,
 }
@@ -179,8 +251,16 @@ impl Broker {
 
     pub fn execute(&self, doc_id: &str, cmd: &EngineCommand) -> Result<CommandResult> {
         let s = self.session(doc_id)?;
-        let (name, params, label) = map_command(cmd)?;
-        self.apply_op(&s, Op::Exec { name, params }, label)
+        let m = map_command(cmd)?;
+        self.apply_op(
+            &s,
+            Op::Exec {
+                name: m.name,
+                params: m.params,
+                blobs: m.blobs,
+            },
+            m.label,
+        )
     }
 
     pub fn undo(&self, doc_id: &str) -> Result<CommandResult> {
@@ -222,14 +302,26 @@ impl Broker {
             ));
         }
         let (jname, jparams) = match &op {
-            Op::Exec { name, params } => (name.clone(), params.clone()),
+            Op::Exec { name, params, .. } => (name.clone(), params.clone()),
             Op::Undo => ("undo".to_string(), Value::Null),
             Op::Redo => ("redo".to_string(), Value::Null),
         };
         let journal = self.ensure_journal(s);
+        let blobs: &[Blob] = match &op {
+            Op::Exec { blobs, .. } => blobs,
+            _ => &[],
+        };
+        // External inputs are stored by content hash so replay never depends on the
+        // original file (ADR-012); they are durable before the Intent that names them.
+        let mut blob_refs: Vec<BlobRef> = Vec::new();
+        if let Some(j) = &journal {
+            for b in blobs {
+                blob_refs.push(j.put_blob(b)?);
+            }
+        }
         let mut token = match &journal {
             Some(j) => Some(
-                j.begin(&jname, jparams.clone(), Vec::<BlobRef>::new())
+                j.begin(&jname, jparams.clone(), blob_refs)
                     .map_err(|e| match e {
                         JournalError::Quarantined { .. } => HostErr::internal(
                             "This action crashed Papyrine twice, so it is disabled for this document.",
@@ -260,13 +352,17 @@ impl Broker {
         let out = Some(dup_region(&region)?);
         let doc = DocId(s.id);
         let req = match &op {
-            Op::Exec { name, params } => Request::Execute {
+            Op::Exec {
+                name,
+                params,
+                blobs,
+            } => Request::Execute {
                 doc,
                 command: CommandRequest {
                     name: name.clone(),
                     params_json: params.to_string(),
                 },
-                blobs: vec![],
+                blobs: blobs.iter().map(ipc_blob).collect::<Result<Vec<_>>>()?,
                 out_section: out,
             },
             Op::Undo => Request::Undo {
@@ -337,6 +433,7 @@ impl Broker {
             crashes = j.resolve_unfinished(seq, Resolution::Skip).unwrap_or(0);
         }
         // Rebuild right away (journal replay) so the next edit is not slowed by it.
+        s.st().skipped_action = Some(label.to_string());
         let rebuilt = self.engine_client(s);
         let mut msg =
             format!("Your last action, {label}, didn't finish. Engine restarted; no changes lost.");
@@ -461,11 +558,19 @@ impl Broker {
         if !redo {
             return Ok(self.no_change(&s));
         }
+        // A command with external inputs gets them back from the journal's blob store.
+        let blobs: Vec<Blob> = u
+            .blobs
+            .iter()
+            .filter_map(|b| journal.read_blob(b).ok())
+            .map(Arc::new)
+            .collect();
         self.apply_op(
             &s,
             Op::Exec {
                 name: u.command.clone(),
                 params: params.unwrap_or(Value::Null),
+                blobs,
             },
             u.label.clone(),
         )

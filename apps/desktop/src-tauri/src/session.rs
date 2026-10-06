@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use papyrine_journal::{Flusher, Journal};
 
-use crate::api::{DocumentInfo, DocumentMeta, PageInfo};
+use crate::api::{DocumentInfo, DocumentMeta, FormKind, PageInfo};
 use crate::util::{BaseFile, FileStat, Section};
 
 /// A command that was in flight when the previous process died, waiting for Redo or Skip.
@@ -17,6 +17,9 @@ pub struct Unfinished {
     pub label: String,
     /// Crashes already counted against this exact command; 2 means quarantined.
     pub prior_crashes: u32,
+    /// Journal blobs of the command's external inputs (for Redo).
+    #[serde(skip)]
+    pub blobs: Vec<papyrine_journal::BlobRef>,
 }
 
 pub struct JournalHandle {
@@ -56,6 +59,8 @@ pub struct State {
     pub labels: Vec<LabelRange>,
     pub meta: DocumentMeta,
     pub repaired: bool,
+    pub signed: bool,
+    pub form_kind: FormKind,
     /// The engine opened a journal checkpoint (a different file than the user's), so Save
     /// cannot be an exact append to the user's original.
     pub base_is_checkpoint: bool,
@@ -71,6 +76,8 @@ pub struct State {
     /// Params of the unfinished command, for Redo.
     pub unfinished_params: Option<serde_json::Value>,
     pub checkpoint_disabled: bool,
+    /// The action that was running when the engine died (reported with `engine-restarted`).
+    pub skipped_action: Option<String>,
     /// Creating the journal failed once; do not retry on every command.
     pub journal_failed: bool,
     /// Bumps whenever what the renderer shows changes; in-flight tiles from an older
@@ -120,18 +127,27 @@ impl Session {
 
 impl State {
     pub fn info(&self, id: u64) -> DocumentInfo {
+        let mut meta = self.meta.clone();
+        meta.file_size = if self.path.is_some() {
+            self.base.len
+        } else {
+            0
+        };
         DocumentInfo {
             doc_id: format!("doc-{id}"),
             name: self.name.clone(),
             path: self.path.as_ref().map(|p| p.to_string_lossy().into_owned()),
             page_count: self.pages.len(),
             pages: self.pages.clone(),
-            meta: self.meta.clone(),
+            meta,
             repaired: self.repaired,
             revision: self.revision,
             dirty: self.dirty,
             can_undo: self.can_undo,
             can_redo: self.can_redo,
+            signed: self.signed,
+            form_kind: self.form_kind,
+            form_scripts: false,
         }
     }
 

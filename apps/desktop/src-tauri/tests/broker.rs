@@ -94,7 +94,7 @@ fn edit_undo_redo_save_and_reopen_round_trip() {
     let rd = h.broker.redo(&id).unwrap();
     assert_eq!(rd.info.pages[1].rotation, 90);
 
-    let saved = h.broker.save(&id, &SaveOptions::default()).unwrap();
+    let saved = saved_info(h.broker.save(&id, &SaveOptions::default()).unwrap());
     assert!(
         !saved.dirty && saved.can_undo,
         "history survives an incremental save"
@@ -214,10 +214,12 @@ fn text_layer_geometry_and_search() {
             SearchOptions {
                 case_sensitive: false,
                 whole_word: false,
+                diacritic_insensitive: true,
+                include_comments: false,
+                include_form_values: false,
             },
         )
         .unwrap();
-    eprintln!("events so far: {:?}", h.events());
     h.wait_event(
         "search finished",
         |e| matches!(e, HostEvent::JobProgress { job_id, finished: true, .. } if *job_id == job),
@@ -237,6 +239,10 @@ fn text_layer_geometry_and_search() {
         hits.iter()
             .all(|h| h.match_length == "quick brown".len() && h.snippet.contains("quick brown"))
     );
+    // Highlight quads are in displayed page points: the 14 pt line sits at y ~ 792 - 640.
+    let q = hits[0].quads[0];
+    let ys = [q[1], q[3], q[5], q[7]];
+    assert!(ys.iter().all(|y| (130.0..170.0).contains(y)), "{q:?}");
 }
 
 #[test]
@@ -263,7 +269,7 @@ fn engine_killed_between_edits_replays_the_journal() {
     );
     assert!(r.info.can_undo);
     assert!(h.events().iter().any(|e| matches!(e, HostEvent::Notice { code, message, .. } if code == "engine-restarted" && message == "Engine restarted; no changes lost.")));
-    let saved = h.broker.save(&id, &SaveOptions::default()).unwrap();
+    let saved = saved_info(h.broker.save(&id, &SaveOptions::default()).unwrap());
     assert!(!saved.dirty);
     qpdf_check(&p);
     let re = h.open(&p);
@@ -347,16 +353,17 @@ fn save_as_open_bytes_and_recent_files() {
     let err = h.broker.save(&id, &SaveOptions::default()).unwrap_err();
     assert!(err.message.contains("Save As"), "{err}");
     let target = h.dir.path().join("saved-as.pdf");
-    let s = h
-        .broker
-        .save(
-            &id,
-            &SaveOptions {
-                path: Some(target.to_string_lossy().into()),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let s = saved_info(
+        h.broker
+            .save(
+                &id,
+                &SaveOptions {
+                    path: Some(target.to_string_lossy().into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+    );
     assert_eq!(s.name, "saved-as.pdf");
     assert_eq!(
         s.path.as_deref(),

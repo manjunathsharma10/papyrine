@@ -164,6 +164,123 @@ pub fn within(dir: &Path, p: &Path) -> Option<std::path::PathBuf> {
     (c.starts_with(&d) && c.is_file()).then_some(c)
 }
 
+/// PDF date (`D:YYYYMMDDHHmmSSOHH'mm'`, every part after the year optional) as ISO 8601.
+/// Anything unparsable is returned empty rather than guessed.
+pub fn pdf_date_to_iso(d: &str) -> String {
+    let d = d.trim();
+    let d = d.strip_prefix("D:").unwrap_or(d);
+    let digits =
+        |from: usize, len: usize| -> Option<u32> { d.get(from..from + len)?.parse::<u32>().ok() };
+    let Some(year) = digits(0, 4) else {
+        return String::new();
+    };
+    let month = digits(4, 2).unwrap_or(1).clamp(1, 12);
+    let day = digits(6, 2).unwrap_or(1).clamp(1, 31);
+    let (h, m, s) = (
+        digits(8, 2).unwrap_or(0),
+        digits(10, 2).unwrap_or(0),
+        digits(12, 2).unwrap_or(0),
+    );
+    if h > 23 || m > 59 || s > 60 {
+        return String::new();
+    }
+    let rest = d.get(14..).unwrap_or("");
+    let tz = match rest.chars().next() {
+        Some('Z') | None => "Z".to_string(),
+        Some(c @ ('+' | '-')) => {
+            let t: String = rest[1..].chars().filter(char::is_ascii_digit).collect();
+            let hh = t.get(0..2).unwrap_or("00");
+            let mm = t.get(2..4).unwrap_or("00");
+            format!("{c}{hh}:{mm}")
+        }
+        _ => "Z".to_string(),
+    };
+    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}{tz}")
+}
+
+/// Unix milliseconds as `YYYY-MM-DDTHH:MM:SSZ` (UTC).
+pub fn iso_from_ms(ms: u64) -> String {
+    let secs = (ms / 1000) as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Civil-from-days (Howard Hinnant).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
+}
+
 pub fn invalid(m: impl Into<String>) -> HostErr {
     HostErr::internal(m)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdf_dates_become_iso() {
+        assert_eq!(
+            pdf_date_to_iso("D:20240131120000+01'00'"),
+            "2024-01-31T12:00:00+01:00"
+        );
+        assert_eq!(pdf_date_to_iso("D:20240131120000Z"), "2024-01-31T12:00:00Z");
+        assert_eq!(pdf_date_to_iso("D:2024"), "2024-01-01T00:00:00Z");
+        assert_eq!(
+            pdf_date_to_iso("D:20240131093015-0530"),
+            "2024-01-31T09:30:15-05:30"
+        );
+        assert_eq!(pdf_date_to_iso("garbage"), "");
+        assert_eq!(pdf_date_to_iso("D:20241301250000"), "");
+    }
+
+    #[test]
+    fn unix_ms_to_iso() {
+        assert_eq!(iso_from_ms(0), "1970-01-01T00:00:00Z");
+        assert_eq!(iso_from_ms(1_709_210_096_000), "2024-02-29T12:34:56Z");
+        assert_eq!(iso_from_ms(951_782_400_000), "2000-02-29T00:00:00Z");
+    }
+
+    #[test]
+    fn engine_output_must_stay_in_its_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let inside = dir.path().join("a.tmp");
+        std::fs::write(&inside, b"x").unwrap();
+        assert!(within(dir.path(), &inside).is_some());
+        let other = tempfile::tempdir().unwrap();
+        let outside = other.path().join("b.tmp");
+        std::fs::write(&outside, b"x").unwrap();
+        assert!(within(dir.path(), &outside).is_none());
+        let sneaky = dir
+            .path()
+            .join("..")
+            .join(other.path().file_name().unwrap())
+            .join("b.tmp");
+        assert!(within(dir.path(), &sneaky).is_none());
+        assert!(
+            within(dir.path(), dir.path()).is_none(),
+            "directories are not files"
+        );
+    }
+
+    #[test]
+    fn needed_size_is_parsed_from_the_message() {
+        assert_eq!(
+            parse_needed("output region too small, need 123456 bytes"),
+            Some(123456)
+        );
+        assert_eq!(parse_needed("nothing"), None);
+    }
 }

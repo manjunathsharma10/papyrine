@@ -10,7 +10,7 @@ use super::Broker;
 use super::engine::RenderAction;
 use papyrine_engine::proto::{OutlineDto, Query, QueryResult};
 
-use crate::api::{DocumentInfo, DocumentMeta, OutlineNode, PageInfo};
+use crate::api::{DocumentInfo, DocumentMeta, FormKind, OutlineNode, PageInfo};
 use crate::error::{Code, HostErr, Result};
 use crate::session::{JournalHandle, Session, State};
 use crate::util::{BaseFile, FileStat, file_name, random_hex};
@@ -129,6 +129,8 @@ impl Broker {
             render_gen: 0,
             pages: Vec::new(),
             repaired: false,
+            signed: false,
+            form_kind: FormKind::None,
             base_is_checkpoint: spec.base_is_checkpoint,
             revision: 0,
             dirty: false,
@@ -141,6 +143,7 @@ impl Broker {
             unfinished: None,
             unfinished_params: None,
             checkpoint_disabled: false,
+            skipped_action: None,
             journal_failed: false,
             epoch: 1,
             closed: false,
@@ -258,6 +261,11 @@ impl Broker {
         {
             let _ = c.client.call(RenderRequest::Close { doc });
         }
+    }
+
+    /// Current info of an open document (no side effects).
+    pub fn session_info(&self, doc_id: &str) -> Result<DocumentInfo> {
+        Ok(self.session(doc_id)?.info())
     }
 
     pub fn get_page_info(&self, doc_id: &str, page: usize) -> Result<PageInfo> {

@@ -51,6 +51,13 @@ impl Recent {
         let _ = std::fs::write(&self.file, json);
     }
 
+    pub fn clear(&self) {
+        let mut g = self.items.lock().unwrap_or_else(|e| e.into_inner());
+        g.clear();
+        drop(g);
+        let _ = std::fs::write(&self.file, b"[]");
+    }
+
     /// Entries whose file still exists.
     pub fn list(&self) -> Vec<RecentFile> {
         self.items

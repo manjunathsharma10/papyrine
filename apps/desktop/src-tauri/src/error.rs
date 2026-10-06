@@ -13,6 +13,7 @@ pub enum Code {
     Corrupt,
     Io,
     Internal,
+    Rejected,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, thiserror::Error)]

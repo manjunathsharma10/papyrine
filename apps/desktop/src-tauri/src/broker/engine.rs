@@ -12,10 +12,10 @@ use papyrine_ipc::{Client, DocId, IpcError, SharedRegion};
 use papyrine_journal::{BaseInfo, Recovery, recover};
 
 use super::Broker;
-use crate::api::DocumentMeta;
+use crate::api::{DocumentMeta, FormKind, HostEvent};
 use crate::error::{HostErr, Result, is_crash};
 use crate::session::{LabelRange, Session};
-use crate::util::{BaseFile, Section, dup_region, within};
+use crate::util::{BaseFile, Section, dup_region, pdf_date_to_iso, within};
 
 pub(crate) type EngineClient = Client<Request, Response>;
 
@@ -42,6 +42,27 @@ pub(crate) fn meta_from(info: &InfoDto, encrypted: bool, old: &DocumentMeta) -> 
             info.version.clone()
         },
         encrypted,
+        creator: info.creator.clone().unwrap_or_default(),
+        created: info
+            .creation_date
+            .as_deref()
+            .map(pdf_date_to_iso)
+            .unwrap_or_default(),
+        modified: info
+            .mod_date
+            .as_deref()
+            .map(pdf_date_to_iso)
+            .unwrap_or_default(),
+        file_size: 0,
+    }
+}
+
+fn form_kind_of(f: &papyrine_engine::proto::FormSummary) -> FormKind {
+    match f.xfa.as_str() {
+        "dynamic" => FormKind::XfaDynamic,
+        "static" => FormKind::XfaStatic,
+        _ if f.has_acroform => FormKind::Acroform,
+        _ => FormKind::None,
     }
 }
 
@@ -250,6 +271,8 @@ impl Broker {
             st.render_gen = 0;
             st.base_is_checkpoint = st.base_is_checkpoint || is_ckpt;
             st.repaired = summary.repaired;
+            st.signed = summary.signatures.signed;
+            st.form_kind = form_kind_of(&summary.form);
             st.can_undo = summary.can_undo;
             st.can_redo = summary.can_redo;
             st.labels = labels_from(&summary.labels);
@@ -313,6 +336,11 @@ impl Broker {
             self.engine_restore(s, &c.client)?;
             s.st().engine_gen = c.generation;
             if restarted {
+                let skipped = s.st().skipped_action.take();
+                self.emit(HostEvent::EngineRestarted {
+                    doc_id: s.doc_id(),
+                    skipped_action: skipped,
+                });
                 self.notice(
                     "info",
                     "engine-restarted",

@@ -626,9 +626,15 @@ impl Broker {
                 if !seen.insert((h.page, sig, h.context.clone())) {
                     continue;
                 }
+                let xf = {
+                    let st = s.st();
+                    st.pages
+                        .get(h.page as usize)
+                        .map(|p| Xform::new(p.width, p.height, p.rotation))
+                };
                 self.emit(HostEvent::SearchHit {
                     job_id: job_id.into(),
-                    hit: map_hit(&h, query, opts.case_sensitive),
+                    hit: map_hit(&h, query, opts.case_sensitive, xf.as_ref()),
                 });
             }
         };
@@ -752,7 +758,12 @@ impl Broker {
 
 // ------------------------------------------------------------------------ helpers
 
-fn map_hit(h: &papyrine_ipc::SearchHit, query: &str, case_sensitive: bool) -> SearchHit {
+fn map_hit(
+    h: &papyrine_ipc::SearchHit,
+    query: &str,
+    case_sensitive: bool,
+    xf: Option<&Xform>,
+) -> SearchHit {
     let (hay, needle) = if case_sensitive {
         (h.context.clone(), query.to_string())
     } else {
@@ -769,27 +780,65 @@ fn map_hit(h: &papyrine_ipc::SearchHit, query: &str, case_sensitive: bool) -> Se
         snippet: h.context.clone(),
         match_start: start,
         match_length: len,
+        source: "text".into(),
+        quads: xf.map(|x| map_quads(&h.quads, x)).unwrap_or_default(),
     }
+}
+
+/// Page user space (points, origin bottom-left, before rotation) to displayed space
+/// (points, origin top-left, rotation applied). Assumes the crop box starts at the origin.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Xform {
+    w0: f64,
+    h0: f64,
+    rot: u16,
+}
+
+impl Xform {
+    pub fn new(disp_w: f32, disp_h: f32, rotation: u16) -> Self {
+        let (dw, dh) = (disp_w as f64, disp_h as f64);
+        let (w0, h0) = if rotation % 180 == 90 {
+            (dh, dw)
+        } else {
+            (dw, dh)
+        };
+        Self {
+            w0,
+            h0,
+            rot: rotation % 360,
+        }
+    }
+
+    pub fn point(&self, x: f64, y: f64) -> (f64, f64) {
+        match self.rot {
+            90 => (y, x),
+            180 => (self.w0 - x, y),
+            270 => (self.h0 - y, self.w0 - x),
+            _ => (x, self.h0 - y),
+        }
+    }
+}
+
+fn map_quads(quads: &[papyrine_ipc::Quad], xf: &Xform) -> Vec<[f64; 8]> {
+    quads
+        .iter()
+        .map(|q| {
+            let mut out = [0.0; 8];
+            for i in 0..4 {
+                let (x, y) = xf.point(q.0[2 * i], q.0[2 * i + 1]);
+                out[2 * i] = x;
+                out[2 * i + 1] = y;
+            }
+            out
+        })
+        .collect()
 }
 
 /// Convert PDFium user-space character boxes into positioned text runs in displayed-page
 /// space (points, origin top-left).
 pub(crate) fn runs_from(t: &PageTextInfo, disp_w: f32, disp_h: f32, rotation: u16) -> Vec<TextRun> {
-    let (dw, dh) = (disp_w as f64, disp_h as f64);
-    // Unrotated page size in user space.
-    let (w0, h0) = if rotation % 180 == 90 {
-        (dh, dw)
-    } else {
-        (dw, dh)
-    };
-    let map = |x: f64, y: f64| -> (f64, f64) {
-        match rotation % 360 {
-            90 => (y, x),
-            180 => (w0 - x, y),
-            270 => (h0 - y, w0 - x),
-            _ => (x, h0 - y),
-        }
-    };
+    let xf = Xform::new(disp_w, disp_h, rotation);
+    let map = |x: f64, y: f64| xf.point(x, y);
     struct Run {
         text: String,
         x0: f64,
@@ -943,7 +992,7 @@ mod tests {
             quads: vec![],
             context: "caf\u{e9} Needle here".into(),
         };
-        let m = map_hit(&h, "needle", false);
+        let m = map_hit(&h, "needle", false, None);
         assert_eq!((m.page, m.match_start, m.match_length), (2, 5, 6));
     }
 }

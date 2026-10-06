@@ -191,6 +191,22 @@ pub fn harness_with(o: Opts) -> Harness {
 }
 
 impl Harness {
+    /// A second host process on the same data directory (the app after a crash or restart).
+    pub fn relaunch(self) -> Harness {
+        self.relaunch_with(Opts::default(), |_| {})
+    }
+
+    pub fn relaunch_with(self, o: Opts, tweak: impl FnOnce(&mut Config)) -> Harness {
+        let Harness { broker, dir, .. } = self;
+        // The old host is "killed": no orderly shutdown, journals stay as they are.
+        drop(broker);
+        let sink = Arc::new(CollectSink::default());
+        let mut cfg = config_in(dir.path(), sink.clone(), &o);
+        tweak(&mut cfg);
+        let broker = Broker::new(cfg);
+        Harness { broker, sink, dir }
+    }
+
     /// Write a generated PDF under the temp dir and return its path.
     pub fn pdf(&self, name: &str, pages: usize) -> PathBuf {
         let p = self.dir.path().join(name);
@@ -221,6 +237,14 @@ impl Harness {
             );
             std::thread::sleep(Duration::from_millis(20));
         }
+    }
+}
+
+/// The document info of a successful save.
+pub fn saved_info(r: papyrine_host::api::SaveReport) -> DocumentInfo {
+    match r {
+        papyrine_host::api::SaveReport::Saved { info, .. } => info,
+        other => panic!("expected a saved report, got {other:?}"),
     }
 }
 

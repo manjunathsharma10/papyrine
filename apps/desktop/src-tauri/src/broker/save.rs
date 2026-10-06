@@ -7,19 +7,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use papyrine_cos::Secret;
-use papyrine_engine::proto::{Delivery, Request, Response, SaveDecision, SaveKindDto, SaveMode};
+use papyrine_engine::proto::{
+    Delivery, Request, Response, SaveDecision, SaveKindDto, SaveMode as EngSaveMode,
+};
 use papyrine_ipc::DocId;
 use papyrine_writer::{ReplaceOptions, Validation, atomic_replace};
 
 use super::Broker;
 use super::engine::base_info;
-use crate::api::{DocumentInfo, SaveOptions};
+use crate::api::{SaveChoice, SaveMode, SaveOptions, SaveReport};
 use crate::error::{Code, HostErr, Result};
 use crate::session::Session;
 use crate::util::{BaseFile, FileStat, file_name};
 
 impl Broker {
-    pub fn save(&self, doc_id: &str, opts: &SaveOptions) -> Result<DocumentInfo> {
+    pub fn save(&self, doc_id: &str, opts: &SaveOptions) -> Result<SaveReport> {
         let s = self.session(doc_id)?;
         let _g = s.lock_cmd();
         if s.st().closed {
@@ -39,7 +41,21 @@ impl Broker {
                 st.base_is_checkpoint,
             )
         };
-        let target: PathBuf = match (&opts.path, &current) {
+        // "Save a copy" after a decision: the original stays untouched, so it needs a path.
+        let mut path = opts.path.clone();
+        if opts.choice == Some(SaveChoice::SaveCopy) && path.is_none() {
+            let suggested = current
+                .as_deref()
+                .map(file_name)
+                .unwrap_or_else(|| s.st().name.clone());
+            path = Some(
+                self.show_save_dialog(&suggested)
+                    .ok_or_else(HostErr::cancelled)?
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        let target: PathBuf = match (&path, &current) {
             (Some(p), _) => PathBuf::from(p),
             (None, Some(c)) => c.clone(),
             (None, None) => {
@@ -50,14 +66,14 @@ impl Broker {
             }
         };
         let in_place = current.as_deref().is_some_and(|c| same_file(c, &target));
-        let mode = if opts.optimize {
-            SaveMode::Optimized {
-                break_signatures: opts.break_signatures,
-            }
+        let break_signatures = matches!(
+            opts.choice,
+            Some(SaveChoice::OptimizeAndInvalidate | SaveChoice::SaveCopy)
+        );
+        let mode = if opts.mode == SaveMode::Optimized {
+            EngSaveMode::Optimized { break_signatures }
         } else {
-            SaveMode::Policy {
-                break_signatures: opts.break_signatures,
-            }
+            EngSaveMode::Policy { break_signatures }
         };
         let doc = DocId(s.id);
         let payload = match self.with_engine(&s, |c| {
@@ -67,14 +83,16 @@ impl Broker {
             })
         })? {
             Response::SaveReady(p) => p,
-            Response::SaveDecision(d) => return Err(decision_error(d)),
+            Response::SaveDecision(d) => return Ok(decision_report(d)),
             other => return Err(HostErr::internal(format!("engine: unexpected {other:?}"))),
         };
         if payload.unchanged && in_place {
-            return Ok(s.info());
-        }
-        if let Some(why) = &payload.suggest_optimize {
-            self.notice("info", "suggest-optimize", why, Some(&s));
+            return Ok(SaveReport::Saved {
+                info: s.info(),
+                suggest_optimize: None,
+                rewritten_because: None,
+                history_truncated: None,
+            });
         }
 
         let incremental = payload.kind == SaveKindDto::Incremental;
@@ -126,8 +144,16 @@ impl Broker {
                 Some(&s),
             );
         }
+        let truncated = payload.history_will_reset;
         self.after_save(&s, &target, in_place, payload.token, !incremental)?;
-        Ok(s.info())
+        let rewritten =
+            (!incremental && opts.mode != SaveMode::Optimized).then(|| "repaired".to_string());
+        Ok(SaveReport::Saved {
+            info: s.info(),
+            suggest_optimize: payload.suggest_optimize.as_ref().map(|_| true),
+            rewritten_because: rewritten,
+            history_truncated: truncated.then_some(true),
+        })
     }
 
     fn write_delivery(&self, d: &Delivery, out: &mut impl Write) -> papyrine_writer::Result<()> {
@@ -245,23 +271,17 @@ impl Broker {
     }
 }
 
-fn decision_error(d: SaveDecision) -> HostErr {
-    let (detail, msg) = match d {
-        SaveDecision::SignedAndDamaged { reason } => (
-            "signed-and-damaged",
-            format!(
-                "This signed file is damaged ({reason}). Saving it in place would invalidate its signatures. \
-                 Save a copy, or save anyway and lose the signatures."
-            ),
-        ),
-        SaveDecision::SignedRewrite => (
-            "signed-rewrite",
-            "Optimizing a signed file invalidates its signatures. Continue only if that is acceptable.".to_string(),
-        ),
-    };
-    let mut e = HostErr::new(Code::Internal, msg);
-    e.detail = Some(detail.into());
-    e
+fn decision_report(d: SaveDecision) -> SaveReport {
+    match d {
+        SaveDecision::SignedAndDamaged { .. } => SaveReport::DecisionNeeded {
+            reason: "signed-repaired".into(),
+            choices: vec![SaveChoice::SaveCopy, SaveChoice::OptimizeAndInvalidate],
+        },
+        SaveDecision::SignedRewrite => SaveReport::DecisionNeeded {
+            reason: "signed-optimized".into(),
+            choices: vec![SaveChoice::OptimizeAndInvalidate],
+        },
+    }
 }
 
 fn same_file(a: &Path, b: &Path) -> bool {
