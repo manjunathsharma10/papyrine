@@ -49,7 +49,7 @@ export default function SearchPanel() {
     }
     const timer = setTimeout(() => {
       setSearch({ docId, query, caseSensitive, wholeWord });
-      void host.search(docId, query, { caseSensitive, wholeWord }).then((id) => {
+      void host.search(docId, query, { caseSensitive, wholeWord, diacriticInsensitive: true, includeComments: false, includeFormValues: false }).then((id) => {
         job.current = id;
       });
     }, 180);

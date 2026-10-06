@@ -399,9 +399,11 @@ export const useApp = create<AppState>()((set, get) => ({
     const id = get().activeId;
     if (!id) return;
     try {
-      const info = await getHost().save(id);
-      get().applyInfo(info, []);
-      get().notify("info", "toast.saved");
+      const rep = await getHost().save(id);
+      if (rep.status === "saved") {
+        get().applyInfo(rep.info, []);
+        get().notify("info", "toast.saved");
+      }
     } catch (e) {
       get().notify("error", errorKey(e), { detail: errorDetail(e) });
     }
