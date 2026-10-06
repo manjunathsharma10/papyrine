@@ -185,7 +185,8 @@ fn finish_annots(
     Ok(dropped)
 }
 
-/// Copy the source's named destinations that lead to imported pages. Returns old -> new names.
+/// Copy the source's named destinations that lead to imported pages. Returns the normalized
+/// old name -> the name bytes to store in links.
 fn copy_named_dests(
     cx: &mut EditContext<'_>,
     src_names: &DestMap,
@@ -194,7 +195,7 @@ fn copy_named_dests(
 ) -> Result<HashMap<Vec<u8>, Vec<u8>>> {
     let mut map = HashMap::new();
     let mut todo: Vec<(&Vec<u8>, Object, bool)> = vec![];
-    for (name, value) in &src_names.entries {
+    for (name, value) in src_names.iter() {
         let Some(arr) = dests::dest_array(value)? else {
             continue;
         };
@@ -207,15 +208,21 @@ fn copy_named_dests(
     if todo.is_empty() {
         return Ok(map);
     }
-    dests::touch_dest_tree(cx)?;
     let doc = cx.doc();
     let mut taken = DestMap::collect(doc)?.names();
-    let tree = doc
-        .catalog_name_tree("Dests", true)?
-        .ok_or_else(|| Error::Corrupt("cannot create /Dests name tree".into()))?;
+    let mut entries = dests::raw_entries(doc)?;
     for (name, arr, is_dict) in todo {
         let fresh = dests::unique_name(&taken, name);
         taken.insert(fresh.clone());
+        // Keep the source's own key bytes when the name is unchanged.
+        let key = if &fresh == name {
+            src_names
+                .tree_key(name)
+                .map(<[u8]>::to_vec)
+                .unwrap_or_else(|| encode_text_string(&String::from_utf8_lossy(name)))
+        } else {
+            encode_text_string(&String::from_utf8_lossy(&fresh))
+        };
         let value = if is_dict {
             let d = doc.new_dict();
             d.dict_set("D", &arr)?;
@@ -223,17 +230,33 @@ fn copy_named_dests(
         } else {
             arr
         };
-        doc.name_tree_set(&tree, &fresh, &value)?;
+        entries.push((key.clone(), value));
         if &fresh != name {
             rep.dests_renamed.push((
                 String::from_utf8_lossy(name).into_owned(),
                 String::from_utf8_lossy(&fresh).into_owned(),
             ));
         }
-        map.insert(name.clone(), fresh);
+        map.insert(name.clone(), key);
         rep.dests_copied += 1;
     }
+    dests::write_dest_tree(cx, entries)?;
     Ok(map)
+}
+
+/// Importing pages copies content out of the source, so an encrypted source must allow page
+/// assembly or content extraction unless its owner password was supplied.
+pub fn check_source_permissions(src: &Document) -> Result<()> {
+    if let Some(e) = src.encryption()?
+        && !e.owner_password_matched
+        && !e.allow_modify_assembly
+        && !e.allow_extract_all
+    {
+        return Err(Error::invalid(
+            "the source document's permissions do not allow its pages to be extracted or assembled",
+        ));
+    }
+    Ok(())
 }
 
 /// qpdf adds `/Length` to a lazily copied stream the first time its data is read, which would
@@ -279,6 +302,7 @@ pub fn import_pages(
             "position {at} out of range (0..={n_dest})"
         )));
     }
+    check_source_permissions(src)?;
     src.push_inherited_page_attributes()?;
     cx.touch_page_tree()?;
     let base_max = doc.object_ids()?.iter().map(|i| i.num).max().unwrap_or(0);

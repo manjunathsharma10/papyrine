@@ -17,9 +17,10 @@ mod set_info_field;
 mod set_page_box;
 
 pub use delete_pages::DeletePages;
+pub use dests::{name_tree_entries, norm_string as normalize_dest_name};
 pub use duplicate_pages::DuplicatePages;
 pub use forms::FieldReport;
-pub use import::{ImportOptions, Imported, import_pages};
+pub use import::{ImportOptions, Imported, check_source_permissions, import_pages};
 pub use insert_blank_page::{InsertBlankPage, PageSize};
 pub use insert_pages::{BlobSource, InsertPagesFromPdf, MemoryBlobs, blob_id};
 pub use move_pages::MovePages;

@@ -346,55 +346,92 @@ pub struct Summary {
     pub texts: Vec<String>,
 }
 
-pub fn summarize(doc: &Document) -> Summary {
-    let n = doc.page_count().unwrap();
-    let page_index = |o: &papyrine_cos::Object| -> Option<usize> {
-        if o.kind().ok()? != ObjectKind::Dictionary {
-            return None;
-        }
-        doc.find_page(o).ok()
+/// Bookmarks, form fields and named destinations of any document (tolerates odd files).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Nav {
+    pub outline: Vec<(usize, String, Option<usize>)>,
+    pub fields: Vec<(String, String, Vec<Option<usize>>)>,
+    pub dests: BTreeMap<String, Option<usize>>,
+}
+
+fn page_of(doc: &Document, o: &papyrine_cos::Object) -> Option<usize> {
+    if o.kind().ok()? != ObjectKind::Dictionary {
+        return None;
+    }
+    doc.find_page(o).ok()
+}
+
+fn dest_page_index(doc: &Document, d: &papyrine_cos::Object) -> Option<usize> {
+    let d = if d.kind().ok()? == ObjectKind::Dictionary {
+        d.dict_get("D").ok()?
+    } else {
+        d.clone()
     };
-    let dest_page = |d: &papyrine_cos::Object| -> Option<usize> {
-        let d = if d.kind().ok()? == ObjectKind::Dictionary {
-            d.dict_get("D").ok()?
-        } else {
-            d.clone()
-        };
-        if d.kind().ok()? == ObjectKind::Array {
-            return page_index(&d.array_get(0).ok()?);
-        }
-        None
-    };
-    let mut dests = BTreeMap::new();
-    if let Some(tree) = doc.catalog_name_tree("Dests", false).unwrap() {
-        for k in doc.name_tree_keys(&tree).unwrap() {
-            let v = doc.name_tree_get(&tree, &k).unwrap().unwrap();
-            dests.insert(String::from_utf8_lossy(&k).into_owned(), dest_page(&v));
+    if d.kind().ok()? == ObjectKind::Array && d.array_len().ok()? > 0 {
+        return page_of(doc, &d.array_get(0).ok()?);
+    }
+    None
+}
+
+fn named_dest_page(doc: &Document, name: &[u8]) -> Option<usize> {
+    if let Some(tree) = doc.catalog_name_tree("Dests", false).ok()? {
+        for (k, v) in papyrine_ops::name_tree_entries(&tree).ok()? {
+            if papyrine_ops::normalize_dest_name(&k) == papyrine_ops::normalize_dest_name(name) {
+                return dest_page_index(doc, &v);
+            }
         }
     }
-    let resolve_name = |name: &[u8]| -> Option<usize> {
-        let tree = doc.catalog_name_tree("Dests", false).ok()??;
-        dest_page(&doc.name_tree_get(&tree, name).ok()??)
-    };
+    let legacy = doc.root().ok()?.dict_get("Dests").ok()?;
+    if legacy.kind().ok()? == ObjectKind::Dictionary {
+        return dest_page_index(doc, &legacy.dict_get(name).ok()?);
+    }
+    None
+}
+
+pub fn nav(doc: &Document) -> Nav {
+    let mut dests = BTreeMap::new();
+    if let Ok(Some(tree)) = doc.catalog_name_tree("Dests", false)
+        && let Ok(entries) = papyrine_ops::name_tree_entries(&tree)
+    {
+        for (k, v) in entries {
+            // Names are compared as text: the same name may be stored in several encodings.
+            let key = String::from_utf8_lossy(&papyrine_ops::normalize_dest_name(&k)).into_owned();
+            dests.insert(key, dest_page_index(doc, &v));
+        }
+    }
     let outline = doc
         .outlines()
-        .unwrap()
+        .unwrap_or_default()
         .into_iter()
         .map(|o| {
             let page = o.page.or_else(|| {
                 o.dest_name
                     .as_ref()
-                    .and_then(|d| resolve_name(d.as_bytes()))
+                    .and_then(|d| named_dest_page(doc, d.as_bytes()))
             });
             (o.depth, o.title, page)
         })
         .collect();
     let fields = doc
         .form_fields()
-        .unwrap()
+        .unwrap_or_default()
         .into_iter()
         .map(|f| (f.name, f.value, f.widgets.iter().map(|w| w.page).collect()))
         .collect();
+    Nav {
+        outline,
+        fields,
+        dests,
+    }
+}
+
+pub fn summarize(doc: &Document) -> Summary {
+    let n = doc.page_count().unwrap();
+    let Nav {
+        outline,
+        fields,
+        dests,
+    } = nav(doc);
     let labels = {
         let pl = doc.page_labels().unwrap();
         (0..n).map(|i| pl.label_for(i)).collect()
@@ -414,16 +451,16 @@ pub fn summarize(doc: &Document) -> Summary {
                 }
                 let d = a.dict_get("Dest").unwrap();
                 if d.kind().unwrap() == ObjectKind::Array {
-                    l.push(dest_page(&d));
+                    l.push(dest_page_index(doc, &d));
                 } else if d.kind().unwrap() == ObjectKind::String {
-                    l.push(resolve_name(&d.string().unwrap()));
+                    l.push(named_dest_page(doc, &d.string().unwrap()));
                 } else {
                     let act = a.dict_get("A").unwrap();
                     let dd = act.dict_get("D").unwrap();
                     if dd.kind().unwrap() == ObjectKind::String {
-                        l.push(resolve_name(&dd.string().unwrap()));
+                        l.push(named_dest_page(doc, &dd.string().unwrap()));
                     } else {
-                        l.push(dest_page(&dd));
+                        l.push(dest_page_index(doc, &dd));
                     }
                 }
             }
@@ -620,4 +657,46 @@ pub fn interop(bytes: &[u8], texts: &[String]) {
         }
     }
     assert!(errs.is_empty(), "interop failures:\n{}", errs.join("\n"));
+}
+
+/// PDFium opens a (possibly large) real-world file, reports `pages` pages and renders the
+/// `sample` pages.
+pub fn pdfium_open_render(bytes: &[u8], pages: usize, sample: &[usize]) -> Result<(), String> {
+    let Some(lib) = pdfium_lib() else {
+        return Ok(());
+    };
+    let mut d = papyrine_render::Document::open(
+        &lib,
+        papyrine_render::bytes_from_vec(bytes.to_vec()),
+        &[],
+        None,
+    )
+    .map_err(|e| format!("PDFium open: {e}"))?;
+    if d.page_count() != pages {
+        return Err(format!(
+            "PDFium: {} pages, expected {pages}",
+            d.page_count()
+        ));
+    }
+    for &i in sample {
+        d.render_preview(i, 300, &mut || false)
+            .map_err(|e| format!("PDFium render p{}: {e}", i + 1))?;
+    }
+    Ok(())
+}
+
+/// Poppler's page count only (real files have text we cannot predict); `None` when pdfinfo
+/// is not installed.
+pub fn poppler_pages(bytes: &[u8]) -> Result<Option<usize>, String> {
+    if !have("pdfinfo", "-v") {
+        return Ok(None);
+    }
+    let f = tmp_pdf(bytes);
+    let info = Command::new("pdfinfo").arg(f.path()).output().unwrap();
+    let info = String::from_utf8_lossy(&info.stdout).into_owned();
+    info.lines()
+        .find_map(|l| l.strip_prefix("Pages:"))
+        .and_then(|v| v.trim().parse().ok())
+        .map(Some)
+        .ok_or_else(|| format!("pdfinfo gave no page count: {info}"))
 }

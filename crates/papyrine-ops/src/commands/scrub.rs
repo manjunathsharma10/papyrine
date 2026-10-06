@@ -27,7 +27,7 @@ pub(crate) fn scrub_deleted_pages(
     let names = DestMap::collect(doc)?;
     rep.bookmarks = outlines::neutralise_for_deleted(cx, removed, &names)?;
     rep.links = scrub_links(cx, removed, &names)?;
-    rep.names = scrub_names(cx, removed, &names)?;
+    rep.names = scrub_names(cx, removed)?;
     scrub_open_action(cx, removed, &names)?;
     forms::drop_widgets_of_pages(cx, removed)?;
     Ok(rep)
@@ -90,40 +90,45 @@ fn scrub_links(
     Ok(n)
 }
 
-fn scrub_names(
-    cx: &mut EditContext<'_>,
-    removed: &HashSet<ObjId>,
-    names: &DestMap,
-) -> Result<usize> {
-    let doomed: Vec<Vec<u8>> = names
-        .entries
-        .iter()
-        .filter_map(|(k, v)| {
-            let arr = dests::dest_array(v).ok().flatten()?;
-            let pid = dests::dest_page(&arr).ok().flatten()?;
-            removed.contains(&pid).then(|| k.clone())
-        })
-        .collect();
-    if doomed.is_empty() {
-        return Ok(0);
-    }
-    dests::touch_dest_tree(cx)?;
+fn scrub_names(cx: &mut EditContext<'_>, removed: &HashSet<ObjId>) -> Result<usize> {
     let doc = cx.doc();
+    let leads_to_removed = |v: &Object| -> bool {
+        dests::dest_array(v)
+            .ok()
+            .flatten()
+            .and_then(|a| dests::dest_page(&a).ok().flatten())
+            .is_some_and(|p| removed.contains(&p))
+    };
+    let all = dests::raw_entries(doc)?;
+    let kept: Vec<(Vec<u8>, Object)> = all
+        .iter()
+        .filter(|(_, v)| !leads_to_removed(v))
+        .cloned()
+        .collect();
+    let mut n = all.len() - kept.len();
+    if n > 0 {
+        dests::write_dest_tree(cx, kept)?;
+    }
     let root = doc.root()?;
     let legacy = root.dict_get("Dests")?;
-    if legacy.kind()? == ObjectKind::Dictionary && legacy.is_indirect() {
-        cx.touch(&legacy)?;
-    }
-    let tree = doc.catalog_name_tree("Dests", false)?;
-    for k in &doomed {
-        if let Some(t) = &tree {
-            doc.name_tree_remove(t, k)?;
+    if legacy.kind()? == ObjectKind::Dictionary {
+        let doomed: Vec<Vec<u8>> = legacy
+            .dict_keys()?
+            .into_iter()
+            .filter(|k| legacy.dict_get(k).is_ok_and(|v| leads_to_removed(&v)))
+            .collect();
+        if !doomed.is_empty() {
+            cx.touch(&root)?;
+            if legacy.is_indirect() {
+                cx.touch(&legacy)?;
+            }
+            for k in &doomed {
+                legacy.dict_remove(k)?;
+            }
+            n += doomed.len();
         }
-        if legacy.kind()? == ObjectKind::Dictionary {
-            legacy.dict_remove(k)?;
-        }
     }
-    Ok(doomed.len())
+    Ok(n)
 }
 
 fn scrub_open_action(
@@ -140,7 +145,7 @@ fn scrub_open_action(
             let d = oa.dict_get("D")?;
             let arr = match d.kind()? {
                 ObjectKind::Array => Some(d),
-                ObjectKind::String => names.array(&d.string()?)?,
+                ObjectKind::String => names.array(&dests::norm_string(&d.string()?))?,
                 ObjectKind::Name => names.array(&d.name()?)?,
                 _ => None,
             };

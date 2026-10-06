@@ -1,0 +1,21 @@
+[package]
+name = "papyrine-organise"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Page operations that produce new documents: merge, extract and split (with bookmarks, form fields, named destinations and page labels carried over)"
+
+[dependencies]
+papyrine-cos = { path = "../papyrine-cos" }
+papyrine-ops = { path = "../papyrine-ops" }
+papyrine-writer = { path = "../papyrine-writer" }
+thiserror = "2"
+
+[dev-dependencies]
+papyrine-render = { path = "../papyrine-render" }
+tempfile = "3"
+
+[lints]
+workspace = true

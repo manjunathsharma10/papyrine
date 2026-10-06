@@ -33,7 +33,8 @@ pub use commands::{
     BlobSource, BoxKind, DeletePages, DuplicatePages, FieldReport, ImportOptions, Imported,
     InfoField, InsertBlankPage, InsertPagesFromPdf, MemoryBlobs, MovePages, OutlineMode,
     PageSelection, PageSize, Parity, RotatePages, ScrubReport, SetInfoField, SetPageBox, blob_id,
-    import_pages, parse_split_ranges,
+    check_source_permissions, import_pages, name_tree_entries, normalize_dest_name,
+    parse_split_ranges,
 };
 pub use context::EditContext;
 pub use error::{Error, Mismatch, Result};
