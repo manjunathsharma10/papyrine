@@ -30,7 +30,7 @@ jobs:
           - { name: windows-x64, os: windows-latest, bundles: "msi,nsis", bin: "target/release/papyrine.exe" }
           - { name: linux-x64, os: ubuntu-22.04, bundles: "deb,rpm", bin: "target/release/papyrine" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Linux build dependencies
         if: runner.os == 'Linux'
