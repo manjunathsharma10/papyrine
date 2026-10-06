@@ -7,15 +7,50 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lib]
+name = "papyrine_host"
+path = "src/lib.rs"
+
 [[bin]]
 name = "papyrine"
 path = "src/main.rs"
+
+# Headless host for the dev bridge: the same broker with no window, so Playwright
+# (Chromium) and the crash tests can drive the real engine and renderer.
+[[bin]]
+name = "papyrine-bridge"
+path = "src/bin/papyrine-bridge.rs"
+required-features = ["dev-bridge"]
+
+[features]
+default = []
+# Dev only, never in release builds: a localhost WebSocket server that exposes the
+# host contract (apps/desktop/src/ipc/bridgeHost.ts is its client).
+dev-bridge = ["dep:tungstenite"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+papyrine-core = { path = "../../../crates/papyrine-core" }
+papyrine-engine = { path = "../../../crates/papyrine-engine" }
+papyrine-render = { path = "../../../crates/papyrine-render" }
+papyrine-cos = { path = "../../../crates/papyrine-cos" }
+papyrine-ipc = { path = "../../../crates/papyrine-ipc" }
+papyrine-journal = { path = "../../../crates/papyrine-journal" }
+papyrine-writer = { path = "../../../crates/papyrine-writer" }
 tauri = { version = "2", default-features = false, features = ["wry", "compression", "common-controls-v6"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
+tungstenite = { version = "0.27", optional = true, default-features = false, features = ["handshake"] }
+getrandom = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+papyrine-ipc = { path = "../../../crates/papyrine-ipc" }
 
 [lints]
 workspace = true
