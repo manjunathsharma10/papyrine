@@ -15,7 +15,7 @@ cxx = "1"
 [build-dependencies]
 cxx-build = "1"
 cmake = "0.1"
-toml = "0.9"
+toml = "1.1"
 
 [lints]
 workspace = true

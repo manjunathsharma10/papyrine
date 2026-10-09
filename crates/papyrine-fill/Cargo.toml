@@ -23,7 +23,7 @@ papyrine-model = { path = "../papyrine-model" }
 papyrine-render = { path = "../papyrine-render" }
 papyrine-writer = { path = "../papyrine-writer" }
 tempfile = "3"
-toml = "0.8"
+toml = "1.1"
 
 [lints]
 workspace = true
