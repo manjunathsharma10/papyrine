@@ -11,7 +11,7 @@ description = "Incremental section writer, ID-preserving full write, atomic repl
 papyrine-cos = { path = "../papyrine-cos" }
 thiserror = "2"
 md-5 = "0.10"
-aes = "0.8"
+aes = "0.9"
 cbc = { version = "0.1", features = ["alloc"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 getrandom = "0.3"
