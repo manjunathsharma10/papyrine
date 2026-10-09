@@ -15,7 +15,7 @@ dev-root = []
 signing = []
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
